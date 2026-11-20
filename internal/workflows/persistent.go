@@ -151,7 +151,7 @@ func validateWorkflow(item Workflow) error {
 		}
 		seen[step.ToolID] = struct{}{}
 		switch step.Status {
-		case Pending, Running, Succeeded, Failed:
+		case Pending, Running, Succeeded, Failed, Cancelled:
 		default:
 			return fmt.Errorf("invalid step status at %d", i)
 		}
@@ -161,7 +161,7 @@ func validateWorkflow(item Workflow) error {
 				return fmt.Errorf("invalid running step timestamps at %d", i)
 			}
 		}
-		if step.Status == Succeeded || step.Status == Failed {
+		if step.Status == Succeeded || step.Status == Failed || step.Status == Cancelled {
 			if step.CompletedAt == nil {
 				return fmt.Errorf("completed step lacks timestamp at %d", i)
 			}

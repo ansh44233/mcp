@@ -18,6 +18,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	transport := flag.String("transport", env("MCP_TRANSPORT", "stdio"), "MCP transport: stdio or http")
 	addr := flag.String("http-addr", env("MCP_HTTP_ADDR", "127.0.0.1:8080"), "HTTP listen address (localhost by default)")
 	flag.Parse()
@@ -41,12 +45,12 @@ func main() {
 		logger.Info("starting MCP server", "transport", "stdio", "version", platformserver.Version)
 		if err := mcpServer.Run(ctx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("MCP server stopped", "error", err)
-			os.Exit(1)
+			return 1
 		}
 	case "http":
 		if !isLoopbackAddress(*addr) {
 			logger.Error("remote HTTP is disabled until authentication and authorization are implemented; bind to localhost", "address", *addr)
-			os.Exit(2)
+			return 2
 		}
 		mcpHandler := mcp.NewStreamableHTTPHandler(
 			func(*http.Request) *mcp.Server { return mcpServer },
@@ -71,12 +75,13 @@ func main() {
 		logger.Info("starting Universal MCP HTTP server", "address", *addr, "mcp_path", "/mcp", "dashboard", "/")
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("HTTP server stopped", "error", err)
-			os.Exit(1)
+			return 1
 		}
 	default:
 		logger.Error("unsupported transport", "transport", *transport)
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
 func env(key, fallback string) string {

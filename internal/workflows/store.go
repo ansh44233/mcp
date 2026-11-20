@@ -63,7 +63,7 @@ type Store struct {
 	file     *os.File
 	next     uint64
 	lastHash string
-	lastError error
+	lastError  error
 	closed   bool
 }
 

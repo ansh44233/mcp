@@ -63,11 +63,11 @@ func TestGitHubReadOnlyToolsAreDiscoverable(t *testing.T) {
 		t.Fatalf("list tools: %v", err)
 	}
 	expected := map[string]bool{
-		"github_repository_get":      false,
-		"github_branches_list":       false,
-		"github_commits_list":        false,
-		"github_issues_list":         false,
-		"github_pull_requests_list":  false,
+		"github_repository_get":     false,
+		"github_branches_list":      false,
+		"github_commits_list":       false,
+		"github_issues_list":        false,
+		"github_pull_requests_list": false,
 	}
 	for _, tool := range listed.Tools {
 		if _, ok := expected[tool.Name]; ok {

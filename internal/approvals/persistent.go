@@ -171,6 +171,9 @@ func approvalRecordHash(record journalRecord) (string, error) {
 // persistLocked must be called while Store.mu is held. A failed append poisons
 // the store so no later transition can be committed on an uncertain journal.
 func (s *Store) persistLocked(request Request) error {
+	if s.closed {
+		return errors.New("approval store is closed")
+	}
 	if s.lastError != nil {
 		return fmt.Errorf("approval persistence unavailable: %w", s.lastError)
 	}
@@ -221,11 +224,13 @@ func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.file == nil {
+		s.closed = true
 		return nil
 	}
 	err := s.file.Sync()
 	closeErr := s.file.Close()
 	s.file = nil
+	s.closed = true
 	if err != nil {
 		return err
 	}

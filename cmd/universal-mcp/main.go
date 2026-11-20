@@ -13,8 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ansh44233/mcp/internal/dashboard"
-	platformserver "github.com/ansh44233/mcp/internal/server"
+ 	platformserver "github.com/ansh44233/mcp/internal/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -46,7 +45,7 @@ func main() {
 		)
 		mux := http.NewServeMux()
 		mux.Handle("/mcp", mcpHandler)
-		mux.Handle("/", dashboard.Handler())
+		mux.Handle("/", platformserver.DashboardHandler())
 		httpServer := &http.Server{
 			Addr: *addr, Handler: mux,
 			ReadHeaderTimeout: 5 * time.Second,

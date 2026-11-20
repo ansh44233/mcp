@@ -29,7 +29,10 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
   - Commit listing
   - Issue listing (pull requests filtered out)
   - Pull-request listing
+  - Single text-file reads (base64 decoded, 1 MiB maximum; binary files rejected)
+  - Recursive Git tree listing, with GitHub's truncation flag preserved
 - Bounded pagination, request timeout, response-size limit and context cancellation for GitHub API calls.
+- Typed primary/secondary rate-limit errors with retry-after and reset metadata when provided by GitHub.
 - Optional `GITHUB_TOKEN` environment variable for authenticated GitHub API access; public repository reads work without it.
 - Mock HTTP tests for the GitHub client and lifecycle tests for the connector.
 - Local operator dashboard served by HTTP mode.
@@ -95,6 +98,8 @@ The server currently advertises these read-only tools:
 | `github_commits_list` | `owner`, `repo` | `page`, `per_page` |
 | `github_issues_list` | `owner`, `repo` | `state`, `page`, `per_page` |
 | `github_pull_requests_list` | `owner`, `repo` | `state`, `page`, `per_page` |
+| `github_file_get` | `owner`, `repo`, `path` | `ref` |
+| `github_tree_get` | `owner`, `repo`, `ref` | — |
 
 All operations use HTTP GET. This first connector release does not create, edit, merge or delete GitHub resources.
 

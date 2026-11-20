@@ -158,7 +158,7 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 }
 
 
- // List returns the current tenant's requests newest-first. It never exposes
+// List returns the current tenant's requests newest-first. It never exposes
  // another tenant's records and caps result size to keep operator views bounded.
 func (s *Store) List(ctx context.Context, limit int) ([]Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)

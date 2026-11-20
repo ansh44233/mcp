@@ -1,0 +1,160 @@
+// Package approvals provides an in-memory, tenant-scoped approval gate for
+// write-capable tool invocations. It stores only an argument digest, never raw
+// arguments. The store is intentionally not wired to production write tools yet.
+package approvals
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/ansh44233/mcp/internal/security"
+	"github.com/ansh44233/mcp/internal/tools"
+)
+
+type Status string
+
+const (
+	Pending  Status = "pending"
+	Approved Status = "approved"
+	Rejected Status = "rejected"
+	Expired  Status = "expired"
+	Consumed Status = "consumed"
+)
+
+var (
+	ErrNotFound       = errors.New("approval request not found")
+	ErrForbidden      = errors.New("approval action is not permitted")
+	ErrInvalidState   = errors.New("approval request is not pending")
+	ErrExpired        = errors.New("approval request expired")
+	ErrArgumentChange = errors.New("tool arguments do not match approved request")
+)
+
+type Request struct {
+	ID             string        `json:"id"`
+	TenantID       string        `json:"tenant_id"`
+	RequesterID    string        `json:"requester_id"`
+	ApproverID     string        `json:"approver_id,omitempty"`
+	ToolID         string        `json:"tool_id"`
+	Provider       string        `json:"provider"`
+	Risk           tools.Risk    `json:"risk"`
+	ArgumentsHash  string        `json:"arguments_hash"`
+	Status         Status        `json:"status"`
+	Reason         string        `json:"reason,omitempty"`
+	CreatedAt      time.Time     `json:"created_at"`
+	ExpiresAt      time.Time     `json:"expires_at"`
+	DecidedAt      *time.Time    `json:"decided_at,omitempty"`
+	ConsumedAt     *time.Time    `json:"consumed_at,omitempty"`
+}
+
+type Store struct {
+	mu       sync.Mutex
+	requests map[string]Request
+	maxItems int
+	now      func() time.Time
+	newID    func() (string, error)
+}
+
+func NewStore(maxItems int) *Store {
+	if maxItems < 1 { maxItems = 10000 }
+	return &Store{requests: make(map[string]Request), maxItems: maxItems, now: time.Now, newID: randomID}
+}
+
+func (s *Store) Create(ctx context.Context, definition tools.Definition, arguments json.RawMessage, ttl time.Duration) (Request, error) {
+	principal, ok := security.PrincipalFromContext(ctx)
+	if !ok { return Request{}, ErrForbidden }
+	if err := principal.Validate(); err != nil { return Request{}, ErrForbidden }
+	if definition.Risk != tools.RiskWrite && definition.Risk != tools.RiskDestructive {
+		return Request{}, fmt.Errorf("approval requests require a write-capable tool")
+	}
+	if len(arguments) == 0 || !json.Valid(arguments) { return Request{}, fmt.Errorf("valid JSON arguments are required") }
+	if ttl <= 0 || ttl > 24*time.Hour { return Request{}, fmt.Errorf("approval TTL must be between 1ns and 24h") }
+	id, err := s.newID()
+	if err != nil { return Request{}, fmt.Errorf("generate approval ID: %w", err) }
+	now := s.now().UTC()
+	sum := sha256.Sum256(arguments)
+	request := Request{
+		ID:id, TenantID:principal.TenantID, RequesterID:principal.ID,
+		ToolID:definition.ID, Provider:definition.Provider, Risk:definition.Risk,
+		ArgumentsHash:hex.EncodeToString(sum[:]), Status:Pending,
+		CreatedAt:now, ExpiresAt:now.Add(ttl),
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.requests) >= s.maxItems { return Request{}, fmt.Errorf("approval store capacity reached") }
+	if _, exists := s.requests[id]; exists { return Request{}, fmt.Errorf("approval ID collision") }
+	s.requests[id] = request
+	return request, nil
+}
+
+// Decide requires a different, authenticated principal in the same tenant.
+func (s *Store) Decide(ctx context.Context, id string, approve bool, reason string) (Request, error) {
+	principal, ok := security.PrincipalFromContext(ctx)
+	if !ok || !principal.Authenticated || principal.Validate() != nil { return Request{}, ErrForbidden }
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	request, exists := s.requests[id]
+	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
+	if request.Status != Pending { return Request{}, ErrInvalidState }
+	now := s.now().UTC()
+	if !now.Before(request.ExpiresAt) {
+		request.Status = Expired
+		s.requests[id] = request
+		return request, ErrExpired
+	}
+	if request.RequesterID == principal.ID { return Request{}, ErrForbidden }
+	request.ApproverID = principal.ID
+	request.Reason = reason
+	request.Status = Rejected
+	if approve { request.Status = Approved }
+	request.DecidedAt = &now
+	s.requests[id] = request
+	return request, nil
+}
+
+// Consume atomically spends an approved request for the original requester,
+// exact tool identity and exact argument bytes. A request can be consumed once.
+func (s *Store) Consume(ctx context.Context, id string, definition tools.Definition, arguments json.RawMessage) (Request, error) {
+	principal, ok := security.PrincipalFromContext(ctx)
+	if !ok || principal.Validate() != nil { return Request{}, ErrForbidden }
+	sum := sha256.Sum256(arguments)
+	digest := hex.EncodeToString(sum[:])
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	request, exists := s.requests[id]
+	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
+	if request.Status != Approved { return Request{}, ErrInvalidState }
+	now := s.now().UTC()
+	if !now.Before(request.ExpiresAt) {
+		request.Status = Expired
+		s.requests[id] = request
+		return request, ErrExpired
+	}
+	if request.RequesterID != principal.ID || request.ToolID != definition.ID ||
+		request.Provider != definition.Provider || request.Risk != definition.Risk {
+		return Request{}, ErrForbidden
+	}
+	if digest != request.ArgumentsHash { return Request{}, ErrArgumentChange }
+	request.Status = Consumed
+	request.ConsumedAt = &now
+	s.requests[id] = request
+	return request, nil
+}
+
+func (s *Store) Get(ctx context.Context, id string) (Request, error) {
+	principal, ok := security.PrincipalFromContext(ctx)
+	if !ok || principal.Validate() != nil { return Request{}, ErrForbidden }
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	request, exists := s.requests[id]
+	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
+	if request.Status == Pending && !s.now().Before(request.ExpiresAt) {
+		request.Status = Expired
+		s.requests[id] = request
+	}
+	return request, nil
+}

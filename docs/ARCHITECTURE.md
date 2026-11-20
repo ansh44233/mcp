@@ -35,7 +35,7 @@ The server constructs providers through the connector manager, which initializes
 
 The dashboard receives tool metadata from the same `githubToolDefinitions` used by MCP catalog registration, and connector metadata/operations from the concurrency-safe connector registry. It exposes read-only `/api/v1/tools` and `/api/v1/connectors` inventory endpoints, plus an explicit `POST /api/v1/connectors/{id}/health-check` action. Health checks have a 10-second context deadline and invoke only the registered connector's fixed health-check implementation; the GitHub check targets a fixed public repository rather than accepting an arbitrary URL. Tool search and provider filtering are client-side presentation over the catalog API. This keeps the UI inventory aligned with the capabilities published by the server, while avoiding claims that connectors can already be installed or configured through the dashboard.
 
-The current tool bridge is a foundation, not a complete policy engine. Risk labels are metadata and do not yet enforce authorization or approval workflows. Only read-only GitHub operations are registered.
+The MCP bridge applies an execution-time risk policy after schema validation and before provider execution. The runtime uses a read-only policy: write, destructive and unknown-risk tools are rejected, and an optional tool allowlist can further restrict access. This is a local capability policy, not user authentication or tenant-aware authorization; those controls and approval workflows remain future work. Only read-only GitHub operations are currently registered.
 
 ## Intended component boundaries
 

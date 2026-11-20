@@ -70,7 +70,9 @@ func run() int {
 			<-ctx.Done()
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_ = httpServer.Shutdown(shutdownCtx)
+			if err := httpServer.Shutdown(shutdownCtx); err != nil {
+				logger.Error("HTTP server graceful shutdown failed", "error", err)
+			}
 		}()
 		logger.Info("starting Universal MCP HTTP server", "address", *addr, "mcp_path", "/mcp", "dashboard", "/")
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

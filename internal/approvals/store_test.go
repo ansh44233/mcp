@@ -260,7 +260,7 @@ func TestReviewerInspectionHonorsRiskAndCapabilityScopes(t *testing.T) {
 	restricted = security.WithPrincipal(context.Background(), security.Principal{
 		ID: "reviewer", TenantID: "tenant-a", Authenticated: true, Authentication: "test",
 		CanApprove: true, MaxRisk: tools.RiskDestructive,
-		AllowedTools: map[string]struct{}{"different_tool": {}},
+		AllowedTools:     map[string]struct{}{"different_tool": {}},
 		AllowedProviders: map[string]struct{}{"github": {}},
 	})
 	if _, err := store.Get(restricted, request.ID); !errors.Is(err, ErrNotFound) {

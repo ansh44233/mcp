@@ -231,6 +231,9 @@ func (s *Store) Consume(ctx context.Context, id string, definition tools.Definit
 	now := s.now().UTC()
 	if !now.Before(request.ExpiresAt) {
 		request.Status = Expired
+		if err := s.persistLocked(request); err != nil {
+			return Request{}, err
+		}
 		s.requests[id] = request
 		return request, ErrExpired
 	}

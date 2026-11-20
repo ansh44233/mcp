@@ -17,6 +17,7 @@ import (
 	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
 	"github.com/ansh44233/mcp/internal/security"
 	platformtools "github.com/ansh44233/mcp/internal/tools"
+	"github.com/ansh44233/mcp/internal/workflows"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -33,6 +34,7 @@ type Runtime struct {
 	manager  *integrations.Manager
 	registry *integrations.Registry
 	audit    *audit.Store
+	workflows *workflows.Store
 }
 
 // Close gracefully shuts down all managed provider connectors.
@@ -43,6 +45,11 @@ func (r *Runtime) Close(ctx context.Context) error {
 	var firstErr error
 	if r.manager != nil {
 		firstErr = r.manager.Close(ctx)
+	}
+	if r.workflows != nil {
+		if err := r.workflows.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
 	if r.audit != nil {
 		if err := r.audit.Close(); err != nil && firstErr == nil {
@@ -71,6 +78,12 @@ func NewRuntime(token string) *Runtime {
 // NewRuntimeWithAudit constructs the runtime with optional durable audit storage.
 // A non-empty path enables an append-only, hash-chained JSONL audit log.
 func NewRuntimeWithAudit(token, auditPath string) *Runtime {
+	return NewRuntimeWithStores(token, auditPath, "")
+}
+
+// NewRuntimeWithStores constructs the runtime with optional durable audit and workflow journals.
+// Workflow persistence is opt-in until an authenticated workflow API and worker are available.
+func NewRuntimeWithStores(token, auditPath, workflowPath string) *Runtime {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    Name,
 		Version: Version,
@@ -84,6 +97,16 @@ func NewRuntimeWithAudit(token, auditPath string) *Runtime {
 			panic(fmt.Errorf("initialize audit log: %w", err))
 		}
 	}
+	var workflowStore *workflows.Store
+	if workflowPath != "" {
+		var err error
+		workflowStore, err = workflows.NewFileStore(workflowPath, 1000)
+		if err != nil {
+			_ = auditStore.Close()
+			panic(fmt.Errorf("initialize workflow journal: %w", err))
+		}
+	}
+
 	connectorRegistry := integrations.NewRegistry()
 	connectorManager := integrations.NewManager(connectorRegistry)
 	githubConnector := githubprovider.NewConnector()
@@ -131,7 +154,7 @@ func NewRuntimeWithAudit(token, auditPath string) *Runtime {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 
-	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry, audit: auditStore}
+	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry, audit: auditStore, workflows: workflowStore}
 }
 
 func githubToolDefinitions() []platformtools.Definition {

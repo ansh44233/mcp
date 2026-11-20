@@ -2,7 +2,7 @@
 
 A Go-based, provider-neutral Model Context Protocol platform with a first-class operator dashboard.
 
-> **Project status: early foundation.** The repository contains a runnable MCP server, a local dashboard, a provider-neutral tool catalog, an initial read-only GitHub connector, and optional OIDC bearer authentication for the local `/mcp` endpoint. The dashboard does not yet have browser authentication; remote HTTP exposure remains disabled. Workflow execution and interactive connector management are not implemented.
+> **Project status: early foundation.** The repository contains a runnable MCP server, a local dashboard, a provider-neutral tool catalog, an initial read-only GitHub connector, and optional OIDC bearer authentication for the local `/mcp` endpoint. The dashboard static UI does not yet have an interactive browser login flow; when OIDC is configured, dashboard `/api/` requests require a verified bearer token. Remote HTTP exposure remains disabled. Workflow execution and interactive connector management are not implemented.
 
 ## Vision
 
@@ -102,7 +102,7 @@ Then open:
 - Connector health check: POST http://127.0.0.1:8080/api/v1/connectors/github/health-check
 - MCP endpoint: http://127.0.0.1:8080/mcp
 
-HTTP mode intentionally binds to loopback only. When all OIDC settings are configured, the `/mcp` endpoint requires a bearer access token validated through the issuer's introspection endpoint and a matching subject grant. With no OIDC settings, local loopback mode uses the explicit read-only local principal. Partial OIDC configuration fails closed. The dashboard and operator APIs do not yet have browser login/authentication, so remote binding remains disabled.
+HTTP mode intentionally binds to loopback only. When all OIDC settings are configured, the `/mcp` endpoint requires a bearer access token validated through the issuer's introspection endpoint and a matching subject grant. With no OIDC settings, local loopback mode uses the explicit read-only local principal. Partial OIDC configuration fails closed. The dashboard API routes require the same OIDC bearer authentication when configured, but the static browser UI does not yet implement an interactive login/token flow. Remote binding remains disabled.
 
 ### Optional OIDC authentication for the local HTTP MCP endpoint
 
@@ -129,7 +129,7 @@ Example grants file:
 }
 ```
 
-The provider must publish an `introspection_endpoint` in its discovery metadata and return active status, issuer, audience, subject and expiry for access tokens. Keep the grants file and client secret under operator control; never accept tenant or resource scopes from MCP arguments. Only subjects explicitly listed in the grants file are admitted. The current server still binds to loopback because dashboard browser authentication is not implemented.
+The provider must publish an `introspection_endpoint` in its discovery metadata and return active status, issuer, audience, subject and expiry for access tokens. Keep the grants file and client secret under operator control; never accept tenant or resource scopes from MCP arguments. Only subjects explicitly listed in the grants file are admitted. The current server still binds to loopback because the static dashboard has no interactive browser login/token flow, even though its API routes are protected by the configured bearer middleware.
 
 ## Operator dashboard frontend
 

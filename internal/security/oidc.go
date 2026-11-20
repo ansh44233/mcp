@@ -202,8 +202,8 @@ func validateIntrospectionEndpoint(raw string, issuer *url.URL) (string, error) 
 	if err != nil || !endpoint.IsAbs() || endpoint.Host == "" || endpoint.User != nil || endpoint.Fragment != "" {
 		return "", fmt.Errorf("OIDC discovery contains an invalid introspection endpoint")
 	}
-	if endpoint.Scheme != issuer.Scheme || !strings.EqualFold(endpoint.Hostname(), issuer.Hostname()) {
-		return "", fmt.Errorf("OIDC introspection endpoint must use the issuer scheme and hostname")
+	if endpoint.Scheme != issuer.Scheme || !strings.EqualFold(endpoint.Host, issuer.Host) {
+		return "", fmt.Errorf("OIDC introspection endpoint must use the issuer origin")
 	}
 	if endpoint.Scheme == "https" || (endpoint.Scheme == "http" && isLoopbackHost(endpoint.Hostname())) {
 		return endpoint.String(), nil

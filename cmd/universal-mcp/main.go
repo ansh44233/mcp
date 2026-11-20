@@ -13,7 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ansh44233/mcp/internal/security"\n\tplatformserver "github.com/ansh44233/mcp/internal/server"
+	"github.com/ansh44233/mcp/internal/security"
+	platformserver "github.com/ansh44233/mcp/internal/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -43,7 +44,8 @@ func run() int {
 	switch *transport {
 	case "stdio":
 		logger.Info("starting MCP server", "transport", "stdio", "version", platformserver.Version)
-		localCtx := security.WithPrincipal(ctx, security.LocalPrincipal())\n\t\tif err := mcpServer.Run(localCtx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) {
+		localCtx := security.WithPrincipal(ctx, security.LocalPrincipal())
+		if err := mcpServer.Run(localCtx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("MCP server stopped", "error", err)
 			return 1
 		}
@@ -104,4 +106,12 @@ func isLoopbackAddress(address string) bool {
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
-\n// localPrincipalMiddleware marks loopback HTTP requests as the explicit local identity.\n// This is not remote authentication; the listener is separately restricted to loopback.\nfunc localPrincipalMiddleware(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tctx := security.WithPrincipal(r.Context(), security.LocalPrincipal())\n\t\tnext.ServeHTTP(w, r.WithContext(ctx))\n\t})\n}\n
+
+// localPrincipalMiddleware marks loopback HTTP requests as the explicit local identity.
+// This is not remote authentication; the listener is separately restricted to loopback.
+func localPrincipalMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := security.WithPrincipal(r.Context(), security.LocalPrincipal())
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}

@@ -21,6 +21,8 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Official MCP Go SDK pinned at `v1.8.0`.
 - Go server with stdio and Streamable HTTP transports.
 - Read-only `platform_status` MCP tool with structured output.
+- Provider-neutral tool catalog with stable IDs, provider metadata, risk classification and JSON input-schema validation.
+- Concurrency-safe tool registration, lookup and deterministic discovery, with defensive copies of schema data.
 - Local operator dashboard served by the HTTP mode.
 - Read-only `/healthz` and `/api/v1/status` endpoints.
 - Graceful HTTP shutdown and structured server logs.
@@ -82,6 +84,7 @@ go test ./...
 
 - `cmd/universal-mcp`: executable entry point.
 - `internal/server`: MCP server and built-in platform tools.
+- `internal/tools`: provider-neutral tool metadata catalog and discovery registry.
 - `internal/dashboard`: local operator dashboard and read-only API.
 - `docs`: architecture and operational documentation (being expanded).
 - `.github/workflows`: CI automation.

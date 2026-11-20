@@ -41,7 +41,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Local operator dashboard served by HTTP mode.
 - Read-only `/healthz`, `/api/v1/status`, `/api/v1/tools` and `/api/v1/connectors` endpoints.
 - Dashboard tool inventory is generated from the same provider tool definitions used to publish MCP capabilities; supports text search and provider filtering.
-- Connector inventory is sourced from the connector registry and offers an explicit, bounded health-check action for registered providers.
+- Connector inventory is sourced from the same managed connector registry used by MCP execution and offers an explicit, bounded health-check action for registered providers.
 - Graceful HTTP shutdown and structured server logs.
 - HTTP mode restricted to loopback addresses until remote authentication and authorization are implemented.
 - GitHub Actions checks for formatting, dependency resolution, vetting and tests.

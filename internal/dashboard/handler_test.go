@@ -148,6 +148,46 @@ func TestConnectorHealthCheckEndpoint(t *testing.T) {
 	}
 }
 
+func TestRuntimeDashboardRequiresPrincipalAndScopesAuditByTenant(t *testing.T) {
+	config := testConfig()
+	config.RequirePrincipal = true
+	config.AuditEvents = func(int) []audit.Event {
+		return []audit.Event{{TenantID: "tenant-a", ToolID: "must-not-use-global-list"}}
+	}
+	config.AuditEventsForTenant = func(tenantID string, _ int) []audit.Event {
+		return []audit.Event{{TenantID: tenantID, ToolID: "tenant-scoped"}}
+	}
+	handler := HandlerWithConfig(config)
+
+	unauthenticated := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, "/api/v1/audit", nil))
+	if unauthenticated.Code != http.StatusUnauthorized {
+		t.Fatalf("missing principal returned %d, want 401", unauthenticated.Code)
+	}
+
+	ctx := security.WithPrincipal(context.Background(), security.LocalPrincipal())
+	localRequest := httptest.NewRequest(http.MethodGet, "/api/v1/audit", nil).WithContext(ctx)
+	localResponse := httptest.NewRecorder()
+	handler.ServeHTTP(localResponse, localRequest)
+	if localResponse.Code != http.StatusOK || !strings.Contains(localResponse.Body.String(), "tenant-scoped") ||
+		!strings.Contains(localResponse.Body.String(), "\"tenant_id\":\"local\"") {
+		t.Fatalf("local tenant audit response was not scoped: status=%d body=%s", localResponse.Code, localResponse.Body.String())
+	}
+
+	principal := security.Principal{
+		ID: "alice", TenantID: "tenant-a", Authenticated: true,
+		Authentication: "test", MaxRisk: tools.RiskRead,
+	}
+	tenantRequest := httptest.NewRequest(http.MethodGet, "/api/v1/audit", nil).
+		WithContext(security.WithPrincipal(context.Background(), principal))
+	tenantResponse := httptest.NewRecorder()
+	handler.ServeHTTP(tenantResponse, tenantRequest)
+	if tenantResponse.Code != http.StatusOK || !strings.Contains(tenantResponse.Body.String(), "\"tenant_id\":\"tenant-a\"") ||
+		strings.Contains(tenantResponse.Body.String(), "must-not-use-global-list") {
+		t.Fatalf("tenant audit response was not scoped: status=%d body=%s", tenantResponse.Code, tenantResponse.Body.String())
+	}
+}
+
 func TestAuditEventsEndpoint(t *testing.T) {
 	config := testConfig()
 	config.AuditEvents = func(limit int) []audit.Event {

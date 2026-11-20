@@ -12,9 +12,9 @@ import (
 // OIDCAuthorizationEndpoints contains issuer-pinned endpoints required by the
 // OAuth 2.0 authorization-code flow. It contains no client credentials.
 type OIDCAuthorizationEndpoints struct {
-	Issuer               string
+	Issuer                string
 	AuthorizationEndpoint string
-	TokenEndpoint        string
+	TokenEndpoint         string
 }
 
 // DiscoverOIDCAuthorizationEndpoints loads OIDC discovery metadata and validates

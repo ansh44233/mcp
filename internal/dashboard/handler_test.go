@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -119,7 +120,7 @@ func TestConnectorHealthCheckEndpoint(t *testing.T) {
 	config := testConfig()
 	config.HealthChecks = map[string]func(context.Context) error{
 		"github": func(context.Context) error { return nil },
-		"broken": func(context.Context) error { return context.DeadlineExceeded },
+		"broken": func(context.Context) error { return errors.New("upstream https://example.invalid?token=secret-value") },
 	}
 	handler := HandlerWithConfig(config)
 
@@ -140,6 +141,9 @@ func TestConnectorHealthCheckEndpoint(t *testing.T) {
 		}
 		if test.wantBody != "" && !strings.Contains(rec.Body.String(), test.wantBody) {
 			t.Errorf("%s: body %q does not contain %q", test.id, rec.Body.String(), test.wantBody)
+		}
+		if test.id == "broken" && strings.Contains(rec.Body.String(), "secret-value") {
+			t.Errorf("connector diagnostic leaked through API: %s", rec.Body.String())
 		}
 	}
 }

@@ -48,7 +48,7 @@ func TestDiscoverOIDCAuthorizationEndpointsRejectsUntrustedMetadata(t *testing.T
 			issuer := ""
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_ = json.NewEncoder(w).Encode(map[string]string{
-					"issuer": issuer,
+					"issuer":                 issuer,
 					"authorization_endpoint": testCase.authorization,
 					"token_endpoint":         testCase.token,
 				})

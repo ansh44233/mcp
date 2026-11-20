@@ -89,3 +89,22 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 3. Stabilize dashboard API contracts and build the React/TypeScript operator UI.
 4. Add durable workflow orchestration.
 5. Add further providers, compatibility testing, security testing and performance benchmarks.
+
+
+### Persistent approval journal
+
+The approvals package supports an optional append-only JSONL journal through
+`approvals.NewFileStore(path, capacity)`. Each create, decision, expiry, and
+consumption transition is synchronously appended and fsynced before the new
+state is published in memory. Startup verifies monotonically increasing
+sequence numbers, previous-record links, SHA-256 record hashes, request
+metadata, and allowed state transitions; malformed or tampered history fails
+closed. Journal directories are created with restrictive permissions and the
+file is set to mode `0600`. Records contain only the SHA-256 digest of tool
+arguments, never raw arguments or credentials.
+
+This is local-file durability, not protection against a privileged attacker
+who can rewrite the complete journal and recompute its hash chain. It is not
+yet configured in the production runtime or connected to write-tool execution.
+A failed append poisons the store and prevents further state transitions rather
+than allowing memory and disk state to diverge.

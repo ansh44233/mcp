@@ -3,6 +3,8 @@ package security
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -70,5 +72,33 @@ func TestOAuthTransactionRejectsMalformedState(t *testing.T) {
 		if _, err := store.Consume(state); err == nil {
 			t.Errorf("accepted malformed state %q", state)
 		}
+	}
+}
+
+func TestOAuthTransactionConsumeIsAtomicUnderConcurrency(t *testing.T) {
+	store, err := NewOAuthTransactionStore(1, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transaction, err := store.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const contenders = 32
+	var successes atomic.Int32
+	var wg sync.WaitGroup
+	wg.Add(contenders)
+	for range contenders {
+		go func() {
+			defer wg.Done()
+			if _, err := store.Consume(transaction.State); err == nil {
+				successes.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := successes.Load(); got != 1 {
+		t.Fatalf("expected exactly one successful state consumption, got %d", got)
 	}
 }

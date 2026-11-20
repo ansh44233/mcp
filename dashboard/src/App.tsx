@@ -20,6 +20,7 @@ type AuditEvent = {
   tool_id: string; risk: string; outcome: string; duration: number;
 };
 type AuditHealth = { persistent: boolean; healthy: boolean; last_sequence: number };
+type ApprovalHealth = { persistent: boolean; healthy: boolean; requests: number; sequence: number };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { cache: "no-store", ...init });
@@ -32,7 +33,7 @@ export default function App() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [auditHealth, setAuditHealth] = useState<AuditHealth | null>(null);
+  const [auditHealth, setAuditHealth] = useState<AuditHealth | null>(null);\n  const [approvalHealth, setApprovalHealth] = useState<ApprovalHealth | null>(null);
   const [query, setQuery] = useState("");
   const [provider, setProvider] = useState("all");
   const [updated, setUpdated] = useState<Date | null>(null);
@@ -40,15 +41,15 @@ export default function App() {
 
   async function refresh() {
     try {
-      const [s, t, c, a, h] = await Promise.all([
+      const [s, t, c, a, h, p] = await Promise.all([
         api<Status>("/api/v1/status"),
         api<{ tools: Tool[] }>("/api/v1/tools"),
         api<{ connectors: Connector[] }>("/api/v1/connectors"),
         api<{ events: AuditEvent[] }>("/api/v1/audit?limit=25"),
-        api<AuditHealth>("/api/v1/audit/health"),
+        api<AuditHealth>("/api/v1/audit/health"),\n        api<ApprovalHealth>("/api/v1/approvals/health"),
       ]);
       setStatus(s); setTools(t.tools); setConnectors(c.connectors);
-      setEvents(a.events); setAuditHealth(h); setUpdated(new Date()); setError("");
+      setEvents(a.events); setAuditHealth(h); setApprovalHealth(p); setUpdated(new Date()); setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Dashboard API unavailable");
     }
@@ -80,7 +81,7 @@ export default function App() {
           <a className="selected" href="#overview">Overview</a>
           <a href="#connectors">Connectors</a>
           <a href="#tools">Tool catalog</a>
-          <a href="#audit">Audit log</a>
+          <a href="#audit">Audit log</a>\n          <a href="#approvals">Approvals</a>
           <a href="#workflows">Workflows</a>
         </nav>
         <div className="sidebar-foot">LOCAL CONTROL PLANE<br />READ-ONLY CONSOLE</div>
@@ -122,6 +123,27 @@ export default function App() {
                 <div><strong>{event.tool_id}</strong><small>{event.actor_id || "local"} · {event.provider} · {new Date(event.timestamp).toLocaleString()}</small></div>
                 <span className={`outcome outcome-${event.outcome}`}>{event.outcome}</span>
               </div>)}
+          </section>
+
+          <section className="panel" id="approvals">
+            <SectionTitle eyebrow="CHANGE CONTROL" title="Approval journal" />
+            <div className="audit-state">
+              <span className={approvalHealth?.healthy ? "dot good" : "dot"} />
+              {approvalHealth
+                ? `${approvalHealth.persistent ? "Persistent" : "In-memory"} · ${approvalHealth.healthy ? "Store healthy" : "Store unavailable"}`
+                : "Checking approval store…"}
+            </div>
+            {approvalHealth ? (
+              <>
+                <div className="approval-metrics">
+                  <div><span>Requests stored</span><strong>{approvalHealth.requests}</strong></div>
+                  <div><span>Journal sequence</span><strong>{approvalHealth.sequence}</strong></div>
+                </div>
+                <p className="panel-description approval-note">
+                  Approval decisions are not exposed in this console. Authenticated review and execution controls are not enabled yet.
+                </p>
+              </>
+            ) : <Empty>Approval store health unavailable.</Empty>}
           </section>
 
           <section className="panel panel-wide" id="tools">

@@ -115,6 +115,8 @@ func mountDashboard(mux *http.ServeMux, dashboard http.Handler, bearerMiddleware
 	}
 	if bearerMiddleware != nil {
 		mux.Handle("/api/", bearerMiddleware(dashboard))
+	} else {
+		mux.Handle("/api/", localPrincipalMiddleware(dashboard))
 	}
 	mux.Handle("/", dashboard)
 }

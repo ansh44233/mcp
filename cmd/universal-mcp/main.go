@@ -58,7 +58,7 @@ func run() int {
 		)
 		mux := http.NewServeMux()
 		mux.Handle("/mcp", mcpHandler)
-		mux.Handle("/", platformserver.DashboardHandler())
+		mux.Handle("/", runtime.DashboardHandler())
 		httpServer := &http.Server{
 			Addr: *addr, Handler: mux,
 			ReadHeaderTimeout: 5 * time.Second,

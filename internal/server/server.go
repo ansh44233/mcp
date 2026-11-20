@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ansh44233/mcp/internal/audit"
 	"github.com/ansh44233/mcp/internal/dashboard"
 	"github.com/ansh44233/mcp/internal/integrations"
 	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
@@ -30,6 +31,7 @@ type Runtime struct {
 	Server   *mcp.Server
 	manager  *integrations.Manager
 	registry *integrations.Registry
+	audit    *audit.Store
 }
 
 // Close gracefully shuts down all managed provider connectors.
@@ -97,11 +99,12 @@ func NewRuntime(token string) *Runtime {
 			panic(fmt.Errorf("register tool %q: %w", definition.ID, err))
 		}
 	}
-	if err := platformtools.RegisterMCPWithAuthorization(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).AuthorizeRequest); err != nil {
+	auditStore := audit.NewStore(audit.DefaultCapacity)
+	if err := platformtools.RegisterMCPWithObserver(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).AuthorizeRequest, auditStore); err != nil {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 
-	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry}
+	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry, audit: auditStore}
 }
 
 func githubToolDefinitions() []platformtools.Definition {
@@ -258,6 +261,7 @@ func (r *Runtime) DashboardHandler() http.Handler {
 		Tools:        toolInfos,
 		Connectors:   connectors,
 		HealthChecks: healthChecks,
+		AuditEvents: func(limit int) []audit.Event { return r.audit.List(limit) },
 	})
 }
 

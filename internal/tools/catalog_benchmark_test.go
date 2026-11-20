@@ -18,8 +18,7 @@ func benchmarkRegistry(b *testing.B, size int) (*Registry, string) {
 			Provider:    "benchmark",
 			Name:        "Benchmark tool",
 			Description: "Synthetic definition for catalog benchmarks.",
-			Risk:        RiskRead,
-			InputSchema: schema,
+			Risk:        RiskRead, InputSchema: schema,
 		}); err != nil {
 			b.Fatal(err)
 		}

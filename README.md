@@ -99,6 +99,20 @@ Then open:
 
 HTTP mode intentionally binds to loopback only. Do not expose it to a network: remote authentication, authorization and tenant isolation are not implemented yet.
 
+## Operator dashboard frontend
+
+The React + TypeScript dashboard source lives in `dashboard/` and is built with Vite:
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+The Vite development server proxies `/api` and `/healthz` to the local Go server at `127.0.0.1:8080`. Run the Go server in HTTP mode in a separate terminal. Production assets are currently built to `dashboard/dist`; the Go server still serves the existing embedded dashboard until the static-asset integration milestone is completed.
+
+The dashboard build has its own GitHub Actions type-check/build workflow.
+
 ## GitHub MCP tools
 
 The server currently advertises these read-only tools:

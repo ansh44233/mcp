@@ -88,7 +88,8 @@ func TestGitHubReadOnlyToolsAreDiscoverable(t *testing.T) {
 }
 
 func TestDashboardUsesRegisteredMCPDefinitions(t *testing.T) {
-	handler := DashboardHandler()
+	runtime := NewRuntime("")
+	handler := runtime.DashboardHandler()
 	toolsResponse := httptest.NewRecorder()
 	handler.ServeHTTP(toolsResponse, httptest.NewRequest(http.MethodGet, "/api/v1/tools", nil))
 	if toolsResponse.Code != http.StatusOK {

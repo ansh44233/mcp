@@ -1,8 +1,8 @@
 package server
 
 import (
-	"time"
 	"context"
+	"time"
 	"net/http"
 	"net/http/httptest"
 	"strings"

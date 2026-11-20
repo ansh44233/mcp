@@ -9,11 +9,11 @@ type testConnector struct {
 	meta Metadata
 }
 
-func (c *testConnector) Metadata() Metadata { return c.meta }
+func (c *testConnector) Metadata() Metadata                       { return c.meta }
 func (c *testConnector) Initialize(context.Context, Config) error { return nil }
-func (c *testConnector) HealthCheck(context.Context) error { return nil }
-func (c *testConnector) Operations() []Operation { return nil }
-func (c *testConnector) Shutdown(context.Context) error { return nil }
+func (c *testConnector) HealthCheck(context.Context) error        { return nil }
+func (c *testConnector) Operations() []Operation                  { return nil }
+func (c *testConnector) Shutdown(context.Context) error           { return nil }
 
 func TestRegistryRegisterGetAndList(t *testing.T) {
 	r := NewRegistry()

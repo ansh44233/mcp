@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/audit"
 	"github.com/ansh44233/mcp/internal/workflows"
 )
@@ -45,6 +46,7 @@ type Config struct {
 	AuditEvents    func(int) []audit.Event
 	AuditHealth    func() audit.Health
 	WorkflowHealth func() workflows.Health
+	ApprovalHealth func() approvals.Health
 	StaticDir      string
 }
 
@@ -118,6 +120,13 @@ func HandlerWithConfig(config Config) http.Handler {
 			return
 		}
 		writeJSON(w, config.WorkflowHealth())
+	})
+	mux.HandleFunc("GET /api/v1/approvals/health", func(w http.ResponseWriter, r *http.Request) {
+		if config.ApprovalHealth == nil {
+			writeJSON(w, approvals.Health{})
+			return
+		}
+		writeJSON(w, config.ApprovalHealth())
 	})
 	mux.HandleFunc("GET /api/v1/audit/health", func(w http.ResponseWriter, r *http.Request) {
 		if config.AuditHealth == nil {

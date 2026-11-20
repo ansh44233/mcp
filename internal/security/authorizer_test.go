@@ -91,7 +91,6 @@ func TestPrincipalValidation(t *testing.T) {
 	}
 }
 
-
 func TestLocalPrincipalIsExplicitlyReadOnly(t *testing.T) {
 	principal := LocalPrincipal()
 	if principal.ID != "local" || principal.TenantID != "local" || principal.Authenticated {

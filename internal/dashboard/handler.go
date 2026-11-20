@@ -3,7 +3,10 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
+	"os"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -39,6 +42,7 @@ type Config struct {
 	HealthChecks map[string]func(context.Context) error
 	AuditEvents  func(int) []audit.Event
 	AuditHealth  func() audit.Health
+	StaticDir    string
 }
 
 type status struct {
@@ -74,7 +78,8 @@ func Handler() http.Handler {
 	return HandlerWithConfig(Config{})
 }
 
-// HandlerWithConfig serves read-only operational metadata derived from the running platform.
+// HandlerWithConfig serves operational APIs and, when StaticDir is configured,
+// the built React application. Without built assets it retains the embedded fallback UI.
 func HandlerWithConfig(config Config) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +138,10 @@ func HandlerWithConfig(config Config) http.Handler {
 		writeJSON(w, map[string]any{"connector_id": r.PathValue("id"), "status": "healthy"})
 	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if config.StaticDir != "" {
+			serveSPA(w, r, config.StaticDir)
+			return
+		}
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -142,6 +151,40 @@ func HandlerWithConfig(config Config) http.Handler {
 		_, _ = w.Write([]byte(indexHTML))
 	})
 	return mux
+}
+
+func serveSPA(w http.ResponseWriter, r *http.Request, directory string) {
+	cleanPath := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if cleanPath == "" || cleanPath == "." {
+		serveIndex(w, r, directory)
+		return
+	}
+	if !fs.ValidPath(cleanPath) {
+		http.NotFound(w, r)
+		return
+	}
+	fsys := os.DirFS(directory)
+	if _, err := fs.Stat(fsys, cleanPath); err == nil {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		http.FileServer(http.Dir(directory)).ServeHTTP(w, r)
+		return
+	}
+	if path.Ext(cleanPath) == "" {
+		serveIndex(w, r, directory)
+		return
+	}
+	http.NotFound(w, r)
+}
+
+func serveIndex(w http.ResponseWriter, r *http.Request, directory string) {
+	indexPath := directory + string(os.PathSeparator) + "index.html"
+	if _, err := os.Stat(indexPath); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	http.ServeFile(w, r, indexPath)
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
@@ -172,4 +215,4 @@ const $=id=>document.getElementById(id);let tools=[];
 function renderTools(){const q=$('tool-search').value.toLowerCase().trim(),p=$('provider-filter').value;const rows=tools.filter(t=>(!p||t.provider===p)&&(!q||[t.id,t.name,t.description,t.provider,t.risk].join(' ').toLowerCase().includes(q)));const root=$('tool-list');root.replaceChildren();if(!rows.length){root.textContent='No tools match this filter.';root.className='empty';return}root.className='';for(const t of rows){const row=document.createElement('div');row.className='row';const left=document.createElement('div');const name=document.createElement('div');name.className='tool-name';name.textContent=t.id;const desc=document.createElement('div');desc.className='tool-desc';desc.textContent=t.description;left.append(name,desc);const meta=document.createElement('span');meta.className='chip';meta.textContent=t.provider+' · '+t.risk;row.append(left,meta);root.append(row)}}
 async function loadAudit(){try{const [h,a]=await Promise.all(['/api/v1/audit/health','/api/v1/audit?limit=25'].map(u=>fetch(u,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('audit API failed');return r.json()})));const health=$('audit-health');health.replaceChildren();const chip=document.createElement('span');chip.className='chip';chip.textContent=(h.persistent?'Persistent':'In-memory')+' · '+(h.healthy?'Integrity OK':'Persistence error')+' · '+h.last_sequence+' total';health.append(chip);const root=$('audit-list');root.replaceChildren();if(!a.events.length){root.textContent='No audit events recorded yet.';root.className='empty';return}root.className='';for(const e of a.events){const row=document.createElement('div');row.className='row';const info=document.createElement('div');const name=document.createElement('div');name.className='tool-name';name.textContent=e.tool_id+' · '+e.outcome;const detail=document.createElement('div');detail.className='tool-desc';detail.textContent=(e.actor_id||'local')+' · '+e.provider+' · '+e.risk+' · '+new Date(e.timestamp).toLocaleString();info.append(name,detail);const seq=document.createElement('span');seq.className='chip';seq.textContent='#'+e.sequence;row.append(info,seq);root.append(row)}}catch(e){$('audit-health').textContent='Audit status unavailable';$('audit-list').textContent='Could not load audit events.'}}async function load(){try{const [s,t,c]=await Promise.all(['/api/v1/status','/api/v1/tools','/api/v1/connectors'].map(u=>fetch(u,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error(u+' failed');return r.json()})));$('health').textContent=s.status==='ok'?'Healthy':'Degraded';$('version').textContent=s.version;$('uptime').textContent=Math.floor(s.uptime_sec)+'s';$('tool-count').textContent=s.tool_count;$('system-state').textContent=s.status==='ok'?'● SYSTEM OPERATIONAL':'● SYSTEM DEGRADED';$('system-state').style.borderColor=s.status==='ok'?'#236d55':'#8a5731';tools=t.tools||[];const select=$('provider-filter'),selected=select.value,providers=[...new Set(tools.map(x=>x.provider))].sort();select.replaceChildren();const all=document.createElement('option');all.value='';all.textContent='All providers';select.append(all);for(const provider of providers){const option=document.createElement('option');option.value=provider;option.textContent=provider;select.append(option)}select.value=providers.includes(selected)?selected:'';renderTools();const root=$('connector-list');root.replaceChildren();if(!c.connectors.length){root.textContent='No connectors registered.';root.className='empty'}else for(const x of c.connectors){const block=document.createElement('div');block.className='row';const info=document.createElement('div');const name=document.createElement('div');name.className='tool-name';name.textContent=x.name+' · '+x.version;const desc=document.createElement('div');desc.className='tool-desc';desc.textContent=x.description;const ops=document.createElement('div');ops.className='tool-desc';ops.textContent=x.operations.length+' operations · '+(x.read_only?'read-only':'mixed access');info.append(name,desc,ops);const actions=document.createElement('div');const tag=document.createElement('span');tag.className='chip';tag.textContent='Registered';const check=document.createElement('button');check.type='button';check.textContent='Check health';const result=document.createElement('div');result.className='tool-desc';check.addEventListener('click',async()=>{check.disabled=true;result.textContent='Checking…';try{const response=await fetch('/api/v1/connectors/'+encodeURIComponent(x.id)+'/health-check',{method:'POST'});const data=await response.json();result.textContent=data.status==='healthy'?'Health check passed':('Health check failed: '+(data.error||'unknown error'))}catch(e){result.textContent='Health check request failed'}finally{check.disabled=false}});actions.append(tag,check,result);block.append(info,actions);root.append(block)}$('refresh').textContent='Updated '+new Date().toLocaleTimeString()}catch(e){$('health').textContent='Unavailable';$('system-state').textContent='● API UNAVAILABLE';$('refresh').textContent='Could not load platform metadata'}}
 $('tool-search').addEventListener('input',renderTools);$('provider-filter').addEventListener('change',renderTools);load();loadAudit();setInterval(load,10000);setInterval(loadAudit,10000);
-</script></body></html>`
+</script></body></html>`;

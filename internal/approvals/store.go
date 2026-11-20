@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -59,6 +60,10 @@ type Store struct {
 	maxItems int
 	now      func() time.Time
 	newID    func() (string, error)
+	file     *os.File
+	next     uint64
+	lastHash string
+	lastError error
 }
 
 func NewStore(maxItems int) *Store {
@@ -105,6 +110,15 @@ func (s *Store) Create(ctx context.Context, definition tools.Definition, argumen
 	if _, exists := s.requests[id]; exists {
 		return Request{}, fmt.Errorf("approval ID collision")
 	}
+	if err := s.persistLocked(request); err != nil {
+		return Request{}, err
+	}
+	if err := s.persistLocked(request); err != nil {
+		return Request{}, err
+	}
+	if err := s.persistLocked(request); err != nil {
+		return Request{}, err
+	}
 	s.requests[id] = request
 	return request, nil
 }
@@ -127,6 +141,12 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 	now := s.now().UTC()
 	if !now.Before(request.ExpiresAt) {
 		request.Status = Expired
+		if err := s.persistLocked(request); err != nil {
+			return Request{}, err
+		}
+		if err := s.persistLocked(request); err != nil {
+			return Request{}, err
+		}
 		s.requests[id] = request
 		return request, ErrExpired
 	}
@@ -177,6 +197,9 @@ func (s *Store) List(ctx context.Context, limit int) ([]Request, error) {
 		}
 		if request.Status == Pending && !now.Before(request.ExpiresAt) {
 			request.Status = Expired
+			if err := s.persistLocked(request); err != nil {
+				return nil, err
+			}
 			s.requests[id] = request
 		}
 		requests = append(requests, request)

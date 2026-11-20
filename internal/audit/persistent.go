@@ -144,7 +144,7 @@ func (s *Store) ObserveToolCall(ctx context.Context, definition tools.Definition
 	event.Hash = hash
 	if s.file != nil {
 		encoded, err := json.Marshal(event)
-		if err == nil { _, err = s.file.Write(append(encoded, '\\n')) }
+		if err == nil { _, err = s.file.Write(append(encoded, '\n')) }
 		if err == nil { err = s.file.Sync() }
 		if err != nil { s.lastError = fmt.Errorf("persist audit event: %w", err); return }
 	}

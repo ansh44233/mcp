@@ -201,6 +201,7 @@ func TestMissingStaticBuildFallsBackToEmbeddedDashboard(t *testing.T) {
 
 
 
+
 func TestWorkflowHealthEndpoint(t *testing.T) {
 	config := testConfig()
 	config.WorkflowHealth = func() workflows.Health {

@@ -318,6 +318,12 @@ func (r *Runtime) DashboardHandlerWithStaticDir(staticDir string) http.Handler {
 		HealthChecks: healthChecks,
 		AuditEvents:  func(limit int) []audit.Event { return r.audit.List(limit) },
 		AuditHealth:  func() audit.Health { return r.audit.Health() },
+		WorkflowHealth: func() workflows.Health {
+			if r.workflows == nil {
+				return workflows.Health{}
+			}
+			return r.workflows.Health()
+		},
 		StaticDir:    staticDir,
 	})
 }

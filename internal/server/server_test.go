@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
-	"time"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

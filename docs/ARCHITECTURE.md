@@ -26,6 +26,7 @@ Until authentication, authorization, tenant isolation and remote transport harde
 - `internal/integrations`: connector lifecycle contract, concurrency-safe registry and serialized manager for initialization, rollback, unregister and graceful shutdown.
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
 - `internal/dashboard`: local operator console, health/status APIs, searchable tool catalog, connector inventory and audit-event APIs.
+- `internal/approvals`: tenant-scoped, single-use approval requests bound to exact tool argument digests. Approval decisions require an authenticated principal with explicit `CanApprove` permission, a separate requester identity, matching tenant and sufficient risk/tool/provider scope. The store is currently in-memory and is not connected to runtime write execution.
 - `internal/audit`: bounded, concurrency-safe event store with optional append-only JSONL persistence, SHA-256 hash chaining and startup verification; stores actor/tenant IDs, tool/provider/risk metadata, outcome and duration, but never raw arguments or credentials.
 - `github.com/modelcontextprotocol/go-sdk`: protocol implementation and transports.
 
@@ -73,7 +74,7 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 ## Current limitations
 
 - GitHub integration is read-only and currently supports seven repository operations.
-- No provider write operations, configured OAuth/token issuer, centralized secret provider, or end-to-end tenant authorization/approval engine exists. The bearer middleware adapter requires a host-supplied verifier and principal resolver and is not wired into the production request path. The principal tenant ID is metadata until provider/resource-level tenant isolation is implemented.
+- No provider write operations, configured OAuth/token issuer, centralized secret provider, or end-to-end tenant authorization/approval engine exists. Approval storage is an isolated in-memory foundation; only principals explicitly granted `CanApprove` may decide requests, but the approval store is not yet durable or wired into tool execution. The bearer middleware adapter requires a host-supplied verifier and principal resolver and is not wired into the production request path. The principal tenant ID is metadata until provider/resource-level tenant isolation is implemented.
 - The connector lifecycle contract and registry exist, but dynamic runtime installation and management are not implemented.
 - HTTP mode is local-only and stateless.
 - No multi-user tenancy, persistent workflow engine, or externally anchored/tamper-resistant audit backend exists.

@@ -190,7 +190,7 @@ func (s *Store) List(ctx context.Context, limit int) ([]Request, error) {
 		if request.TenantID != principal.TenantID {
 			continue
 		}
-		if !principal.CanApprove && request.RequesterID != principal.ID {
+		if !canInspect(principal, request) {
 			continue
 		}
 		if request.Status == Pending && !now.Before(request.ExpiresAt) {
@@ -265,8 +265,7 @@ func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
-	if !exists || request.TenantID != principal.TenantID ||
-		(!principal.CanApprove && request.RequesterID != principal.ID) {
+	if !exists || request.TenantID != principal.TenantID || !canInspect(principal, request) {
 		return Request{}, ErrNotFound
 	}
 	if request.Status == Pending && !s.now().Before(request.ExpiresAt) {
@@ -277,6 +276,26 @@ func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 		s.requests[id] = request
 	}
 	return request, nil
+}
+
+func canInspect(principal security.Principal, request Request) bool {
+	if request.RequesterID == principal.ID {
+		return true
+	}
+	if !principal.CanApprove || riskRank(principal.MaxRisk) < riskRank(request.Risk) {
+		return false
+	}
+	if len(principal.AllowedTools) > 0 {
+		if _, ok := principal.AllowedTools[request.ToolID]; !ok {
+			return false
+		}
+	}
+	if len(principal.AllowedProviders) > 0 {
+		if _, ok := principal.AllowedProviders[request.Provider]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func riskRank(risk tools.Risk) int {

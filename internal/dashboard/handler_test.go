@@ -55,7 +55,7 @@ func TestDashboardRoot(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "Universal MCP") {
 		t.Fatal("dashboard HTML does not contain product title")
 	}
-	if !strings.Contains(rec.Body.String(), "Connected · read-only") {
+	if !strings.Contains(rec.Body.String(), "Available · read-only") {
 		t.Fatal("dashboard does not reflect the GitHub connector")
 	}
 }

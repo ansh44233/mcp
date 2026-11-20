@@ -2,6 +2,8 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -95,5 +97,81 @@ func TestConnectorRejectsInsecureRemoteBaseURL(t *testing.T) {
 	connector := NewConnector()
 	if err := connector.Initialize(context.Background(), integrations.Config{"base_url": "http://example.com"}); err == nil {
 		t.Fatal("expected insecure remote URL rejection")
+	}
+}
+
+func TestClientReadsAndDecodesTextFile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/octo/project/contents/docs/readme.md" {
+			t.Fatalf("unexpected contents path: %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("ref") != "main" {
+			t.Fatalf("unexpected ref: %s", r.URL.RawQuery)
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte("# hello"))
+		_, _ = w.Write([]byte(`{"name":"readme.md","path":"docs/readme.md","size":7,"encoding":"base64","content":"` + encoded + `"}`))
+	}))
+	defer server.Close()
+
+	client := NewClientWithHTTPClient(server.URL, "", server.Client())
+	file, err := client.Contents(context.Background(), "octo", "project", "docs/readme.md", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.DecodedText != "# hello" || file.Content != "" {
+		t.Fatalf("unexpected decoded file: %#v", file)
+	}
+}
+
+func TestClientRejectsUnsafeAndOversizedFilePaths(t *testing.T) {
+	client := NewClientWithHTTPClient("https://api.github.com", "", nil)
+	if _, err := client.Contents(context.Background(), "octo", "project", "../secret", "main"); err == nil {
+		t.Fatal("expected path traversal rejection")
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"name":"large.bin","path":"large.bin","size":1048577,"encoding":"base64","content":""}`))
+	}))
+	defer server.Close()
+	client = NewClientWithHTTPClient(server.URL, "", server.Client())
+	if _, err := client.Contents(context.Background(), "octo", "project", "large.bin", "main"); err == nil {
+		t.Fatal("expected oversized file rejection")
+	}
+}
+
+func TestClientListsRecursiveTree(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/octo/project/git/trees/main" || r.URL.Query().Get("recursive") != "1" {
+			t.Fatalf("unexpected tree request: %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"sha":"abc","truncated":false,"tree":[{"path":"README.md","type":"blob","sha":"def","size":10}]}`))
+	}))
+	defer server.Close()
+	client := NewClientWithHTTPClient(server.URL, "", server.Client())
+	tree, err := client.Tree(context.Background(), "octo", "project", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree.Truncated || len(tree.Tree) != 1 || tree.Tree[0].Path != "README.md" {
+		t.Fatalf("unexpected tree: %#v", tree)
+	}
+}
+
+func TestClientReturnsTypedRateLimitError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1900000000")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"API rate limit exceeded"}`))
+	}))
+	defer server.Close()
+	client := NewClientWithHTTPClient(server.URL, "", server.Client())
+	_, err := client.Repository(context.Background(), "octo", "project")
+	var rateLimit *RateLimitError
+	if !errors.As(err, &rateLimit) {
+		t.Fatalf("expected RateLimitError, got %v", err)
+	}
+	if rateLimit.Remaining != "0" || rateLimit.ResetAt.IsZero() {
+		t.Fatalf("missing rate limit metadata: %#v", rateLimit)
 	}
 }

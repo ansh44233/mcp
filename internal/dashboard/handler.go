@@ -41,11 +41,11 @@ type Config struct {
 	Transports   []string
 	Tools        []ToolInfo
 	Connectors   []ConnectorInfo
-	HealthChecks map[string]func(context.Context) error
-	AuditEvents  func(int) []audit.Event
-	AuditHealth  func() audit.Health
+	HealthChecks   map[string]func(context.Context) error
+	AuditEvents    func(int) []audit.Event
+	AuditHealth    func() audit.Health
 	WorkflowHealth func() workflows.Health
-	StaticDir    string
+	StaticDir      string
 }
 
 type status struct {

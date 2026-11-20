@@ -39,7 +39,7 @@ func TestAuthorizerAllowsExplicitLocalReadOnlyPrincipal(t *testing.T) {
 }
 
 func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
-	principal := Principal{ID: "user-1", TenantID: "tenant-a", Authenticated: true, Authentication: "test", MaxRisk: tools.RiskRead, AllowedTools: map[string]struct{}{"repo_read": {}}, AllowedProviders: map[string]struct{}{"github": {}}}
+	principal := Principal{ID: "user-1", TenantID: "tenant-a", Authenticated: true, Authentication: "test", MaxRisk: tools.RiskRead, AllowedTools: map[string]struct{}{"repo_read": {}}, AllowedProviders: map[string]struct{}{"github": {}}, AllowedResources: map[string]map[string]struct{}{"github": {"owner/repo": {}}}}
 	ctx := WithPrincipal(context.Background(), principal)
 	authorizer := Authorizer{}
 
@@ -64,6 +64,20 @@ func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
 				t.Fatalf("expected %q denial, got %v", test.want, err)
 			}
 		})
+	}
+}
+
+
+func TestAuthorizerRequiresExplicitResourceScopeForAuthenticatedPrincipal(t *testing.T) {
+	ctx := WithPrincipal(context.Background(), Principal{
+		ID: "user-1", TenantID: "tenant-a", Authenticated: true,
+		Authentication: "test", MaxRisk: tools.RiskRead,
+	})
+	err := (Authorizer{}).AuthorizeRequest(ctx,
+		tools.Definition{ID: "repo_read", Provider: "github", Risk: tools.RiskRead},
+		json.RawMessage(`{"owner":"owner","repo":"repo"}`))
+	if err == nil || !strings.Contains(err.Error(), "no explicit resource scope") {
+		t.Fatalf("expected fail-closed resource-scope denial, got %v", err)
 	}
 }
 

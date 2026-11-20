@@ -2,7 +2,7 @@
 
 A Go-based, provider-neutral Model Context Protocol platform with a first-class operator dashboard.
 
-> **Project status: early foundation.** The repository contains a runnable MCP server, a local dashboard, a provider-neutral tool catalog, and an initial read-only GitHub connector. Authentication beyond an optional GitHub token, remote HTTP access, workflow execution and connector management are not implemented. The current dashboard includes a registry-backed read-only tool catalog.
+> **Project status: early foundation.** The repository contains a runnable MCP server, a local dashboard, a provider-neutral tool catalog, an initial read-only GitHub connector, and optional OIDC bearer authentication for the local `/mcp` endpoint. The dashboard does not yet have browser authentication; remote HTTP exposure remains disabled. Workflow execution and interactive connector management are not implemented.
 
 ## Vision
 
@@ -50,9 +50,9 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Approval requests are owned by the runtime in memory by default; set `MCP_APPROVAL_PATH` to enable a private, append-only, hash-chained JSONL journal with startup verification and graceful shutdown. Approval requests store argument digests rather than raw arguments. The approval package includes `ExecuteApproved`, which consumes the exact tenant/requester/tool/argument-bound approval before calling an executor; failed or uncertain external operations do not make the approval reusable. The dashboard API now exposes authenticated, tenant-scoped request listing/detail and reviewer decision routes. Requesters can inspect only their own requests; reviewers must have explicit approval permission and matching risk/tool/provider scopes. These routes require a trusted authenticated principal in request context and are not yet reachable through the default local dashboard middleware. No production write-capable MCP tools use the approval gate yet.
 - Durable append-only JSONL audit trail (enabled by default in the executable at `./data/audit.jsonl`) uses a SHA-256 hash chain, verifies it on startup and records denied, failed and successful MCP tool calls with actor/tenant identity, tool metadata, outcome and duration; raw arguments, credentials and raw errors are excluded.
 - Read-only `/api/v1/audit` endpoint exposes newest-first audit events with a bounded result limit; `/api/v1/audit/health` reports persistence and integrity status.
-- Approval API: `GET /api/v1/approvals` lists requests visible to the authenticated principal; `GET /api/v1/approvals/{id}` returns a visible request; `POST /api/v1/approvals/{id}/decision` accepts `{"approve":true|false,"reason":"..."}` from an authorized reviewer. The decision body is size-limited, rejects unknown fields and requires an explicit boolean. The default executable does not configure a production token verifier or principal resolver, so these routes deny requests without an authenticated principal.
+- Approval API: `GET /api/v1/approvals` lists requests visible to the authenticated principal; `GET /api/v1/approvals/{id}` returns a visible request; `POST /api/v1/approvals/{id}/decision` accepts `{"approve":true|false,"reason":"..."}` from an authorized reviewer. The decision body is size-limited, rejects unknown fields and requires an explicit boolean. The executable configures bearer authentication for `/mcp` only when all OIDC settings and trusted grants are supplied. Dashboard approval routes still require a trusted authenticated principal, but browser login and middleware for these routes are not yet implemented.
 - Graceful HTTP shutdown and structured server logs.
-- HTTP mode restricted to loopback addresses until remote authentication and authorization are implemented.
+- HTTP mode restricted to loopback addresses because the dashboard and operator APIs do not yet have browser authentication.
 - GitHub Actions checks for formatting, dependency resolution, vetting and tests.
 
 ## Planned capabilities
@@ -202,7 +202,7 @@ Implementation details stay under `internal/`. Public Go packages will be added 
 
 ## Security
 
-Never commit access tokens, OAuth client secrets, private keys or production credentials. GitHub access is read-only in this release. The current HTTP endpoint is local-only and unauthenticated. Remote exposure is intentionally blocked until authentication, authorization and transport security are implemented and tested.
+Never commit access tokens, OAuth client secrets, private keys or production credentials. GitHub access is read-only in this release. The HTTP listener remains loopback-only. The `/mcp` route supports optional OIDC bearer-token introspection with trusted subject grants; the dashboard and operator APIs do not yet have browser authentication, so remote exposure is blocked.
 
 ## Project commitments
 

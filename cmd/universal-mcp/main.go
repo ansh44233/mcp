@@ -31,7 +31,7 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	runtime := platformserver.NewRuntime(os.Getenv("GITHUB_TOKEN"))
+	runtime := platformserver.NewRuntimeWithAudit(os.Getenv("GITHUB_TOKEN"), env("MCP_AUDIT_PATH", "./data/audit.jsonl"))
 	mcpServer := runtime.Server
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

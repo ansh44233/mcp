@@ -5,10 +5,10 @@ import (
 	"encoding/base64"
 	"sync"
 	"sync/atomic"
-	"testing"
-	"time"
 	"net/http"
 	"net/http/httptest"
+	"testing"
+	"time"
 )
 
 func TestOAuthTransactionCreatesPKCES256AndConsumesOnce(t *testing.T) {

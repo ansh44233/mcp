@@ -220,7 +220,10 @@ func HandlerWithConfig(config Config) http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 		if err := check(ctx); err != nil {
-			writeJSON(w, map[string]any{"connector_id": r.PathValue("id"), "status": "unhealthy", "error": err.Error()})
+			// Connector errors may contain upstream response bodies, URLs or
+			// credential-adjacent diagnostics. Keep those details out of the
+			// operator API response.
+			writeJSON(w, map[string]any{"connector_id": r.PathValue("id"), "status": "unhealthy", "error": "connector health check failed"})
 			return
 		}
 		writeJSON(w, map[string]any{"connector_id": r.PathValue("id"), "status": "healthy"})

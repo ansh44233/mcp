@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -80,5 +83,27 @@ func TestGitHubReadOnlyToolsAreDiscoverable(t *testing.T) {
 		if !found {
 			t.Errorf("expected GitHub tool %q to be discoverable", name)
 		}
+	}
+}
+
+func TestDashboardUsesRegisteredMCPDefinitions(t *testing.T) {
+	handler := DashboardHandler()
+	toolsResponse := httptest.NewRecorder()
+	handler.ServeHTTP(toolsResponse, httptest.NewRequest(http.MethodGet, "/api/v1/tools", nil))
+	if toolsResponse.Code != http.StatusOK {
+		t.Fatalf("tools endpoint status = %d", toolsResponse.Code)
+	}
+	for _, name := range []string{
+		"platform_status", "github_repository_get", "github_file_get", "github_tree_get",
+	} {
+		if !strings.Contains(toolsResponse.Body.String(), name) {
+			t.Errorf("dashboard tool catalog is missing %q", name)
+		}
+	}
+
+	connectorResponse := httptest.NewRecorder()
+	handler.ServeHTTP(connectorResponse, httptest.NewRequest(http.MethodGet, "/api/v1/connectors", nil))
+	if connectorResponse.Code != http.StatusOK || !strings.Contains(connectorResponse.Body.String(), "github") {
+		t.Fatalf("unexpected connector inventory response: %s", connectorResponse.Body.String())
 	}
 }

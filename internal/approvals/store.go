@@ -201,7 +201,9 @@ func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
-	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
+	if !exists || request.TenantID != principal.TenantID {
+		return Request{}, ErrNotFound
+	}
 	if request.Status == Pending && !s.now().Before(request.ExpiresAt) {
 		request.Status = Expired
 		s.requests[id] = request

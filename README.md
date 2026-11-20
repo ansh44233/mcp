@@ -24,7 +24,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Provider-neutral tool catalog with stable IDs, provider metadata, risk classification and JSON input-schema validation.
 - Catalog-to-MCP bridge: registered definitions are discoverable and invokable through the official SDK.
 - Execution-time risk policy: the default runtime permits read tools only, supports an explicit tool allowlist and rejects write/destructive or unknown-risk tools before the executor runs.
-- Initial authorization primitives: typed request principals, defensive context propagation, fail-closed principal validation, tool/provider scopes and per-principal risk ceilings; the MCP bridge exposes an authorization hook.
+- Initial authorization primitives: typed request principals, defensive context propagation, fail-closed principal validation, tool/provider scopes, per-principal risk ceilings and optional provider-resource allowlists (GitHub owner/repository); the MCP bridge enforces resource authorization against schema-validated arguments before execution.
 - Bearer middleware adapter: composes the official MCP Go SDK token-verification middleware with a server-side principal resolver. The host must supply a real token verifier and trusted user-to-tenant/scope resolver; the production runtime does not configure either yet.
 - Initial GitHub read-only connector using the GitHub REST API:
   - Repository metadata
@@ -52,7 +52,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 
 - More complete connector SDK, runtime status reporting and dynamic registration.
 - GitHub write operations behind explicit authorization and approval policies.
-- Production token-verifier and principal-resolver configuration; tenant-aware resource enforcement, secret-provider integration and audit history. Current principal tenant IDs are identity metadata only and do not yet enforce data isolation.
+- Production token-verifier and principal-resolver configuration, trusted tenant-to-resource scope provisioning, secret-provider integration and audit history. Resource allowlists are enforced when supplied by a trusted principal resolver; tenant IDs alone do not imply isolation.
 - Workflow execution, retries and durable checkpoints.
 - Full dashboard management views for connectors, sessions, workflows, approvals, logs and security; current connector/tool views are read-only.
 - Additional providers and cross-provider search.

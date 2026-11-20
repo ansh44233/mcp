@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/ansh44233/mcp/internal/tools"
 	"github.com/ansh44233/mcp/internal/workflows"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"path/filepath"
 )
 
 func TestPlatformStatusToolIsRegisteredAndCallable(t *testing.T) {

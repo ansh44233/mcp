@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/audit"
 	"github.com/ansh44233/mcp/internal/workflows"
 )
@@ -227,5 +228,36 @@ func TestWorkflowHealthEndpointWithoutStore(t *testing.T) {
 	}
 	if rec.Code != http.StatusOK || got.Persistent || got.Healthy {
 		t.Fatalf("unexpected unconfigured workflow health: status=%d health=%+v", rec.Code, got)
+	}
+}
+
+func TestApprovalHealthEndpoint(t *testing.T) {
+	config := testConfig()
+	config.ApprovalHealth = func() approvals.Health {
+		return approvals.Health{Persistent: true, Healthy: true, Requests: 4, Sequence: 7}
+	}
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/approvals/health", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got approvals.Health
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode approval health: %v", err)
+	}
+	if !got.Persistent || !got.Healthy || got.Requests != 4 || got.Sequence != 7 {
+		t.Fatalf("unexpected approval health: %+v", got)
+	}
+}
+
+func TestApprovalHealthEndpointWithoutStore(t *testing.T) {
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(testConfig()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/approvals/health", nil))
+	var got approvals.Health
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode approval health: %v", err)
+	}
+	if rec.Code != http.StatusOK || got.Persistent || got.Healthy {
+		t.Fatalf("unexpected unconfigured approval health: status=%d health=%+v", rec.Code, got)
 	}
 }

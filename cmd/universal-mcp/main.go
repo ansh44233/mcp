@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -50,9 +50,9 @@ func main() {
 		httpServer := &http.Server{
 			Addr: *addr, Handler: mux,
 			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout: 15 * time.Second,
-			WriteTimeout: 0,
-			IdleTimeout: 60 * time.Second,
+			ReadTimeout:       15 * time.Second,
+			WriteTimeout:      0,
+			IdleTimeout:       60 * time.Second,
 		}
 		go func() {
 			<-ctx.Done()

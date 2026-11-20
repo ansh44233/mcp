@@ -56,7 +56,7 @@ func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := authorizer.Authorize(ctx, test.definition)
+			err := authorizer.AuthorizeRequest(ctx, test.definition, json.RawMessage(`{"owner":"owner","repo":"repo"}`))
 			if test.want == "" && err != nil {
 				t.Fatalf("unexpected denial: %v", err)
 			}

@@ -26,10 +26,10 @@ var (
 // Session contains server-side identity state. OAuth credentials must never be
 // added to this type or serialized into browser-visible responses.
 type Session struct {
-	ID        string
-	CSRFToken string
-	Principal Principal
-	ExpiresAt time.Time
+	ID         string
+	CSRFToken  string
+	Principal  Principal
+	ExpiresAt  time.Time
 }
 
 // SessionStore is a bounded, process-local session store. Restarting the
@@ -56,7 +56,7 @@ func (s *SessionStore) Create(principal Principal) (Session, error) {
 		return Session{}, errors.New("session store is required")
 	}
 	if !principal.Authenticated {
-			return Session{}, errors.New("authenticated principal is required for browser sessions")
+		return Session{}, errors.New("authenticated principal is required for browser sessions")
 	}
 	if err := principal.Validate(); err != nil {
 		return Session{}, err

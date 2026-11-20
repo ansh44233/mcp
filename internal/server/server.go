@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/audit"
 	"github.com/ansh44233/mcp/internal/dashboard"
 	"github.com/ansh44233/mcp/internal/execution"
@@ -35,6 +36,7 @@ type Runtime struct {
 	registry  *integrations.Registry
 	audit     *audit.Store
 	workflows *workflows.Store
+	approvals *approvals.Store
 }
 
 // Close gracefully shuts down all managed provider connectors.
@@ -48,6 +50,11 @@ func (r *Runtime) Close(ctx context.Context) error {
 	}
 	if r.workflows != nil {
 		if err := r.workflows.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if r.approvals != nil {
+		if err := r.approvals.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -84,6 +91,11 @@ func NewRuntimeWithAudit(token, auditPath string) *Runtime {
 // NewRuntimeWithStores constructs the runtime with optional durable audit and workflow journals.
 // Workflow persistence is opt-in until an authenticated workflow API and worker are available.
 func NewRuntimeWithStores(token, auditPath, workflowPath string) *Runtime {
+	return NewRuntimeWithAllStores(token, auditPath, workflowPath, "")
+}
+
+// NewRuntimeWithAllStores configures optional durable audit, workflow and approval journals.
+func NewRuntimeWithAllStores(token, auditPath, workflowPath, approvalPath string) *Runtime {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    Name,
 		Version: Version,
@@ -104,6 +116,16 @@ func NewRuntimeWithStores(token, auditPath, workflowPath string) *Runtime {
 		if err != nil {
 			_ = auditStore.Close()
 			panic(fmt.Errorf("initialize workflow journal: %w", err))
+		}
+	}
+	approvalStore := approvals.NewStore(10000)
+	if approvalPath != "" {
+		var err error
+		approvalStore, err = approvals.NewFileStore(approvalPath, 10000)
+		if err != nil {
+			if workflowStore != nil { _ = workflowStore.Close() }
+			_ = auditStore.Close()
+			panic(fmt.Errorf("initialize approval journal: %w", err))
 		}
 	}
 
@@ -154,7 +176,7 @@ func NewRuntimeWithStores(token, auditPath, workflowPath string) *Runtime {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 
-	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry, audit: auditStore, workflows: workflowStore}
+	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry, audit: auditStore, workflows: workflowStore, approvals: approvalStore}
 }
 
 func githubToolDefinitions() []platformtools.Definition {
@@ -324,6 +346,7 @@ func (r *Runtime) DashboardHandlerWithStaticDir(staticDir string) http.Handler {
 			}
 			return r.workflows.Health()
 		},
+		ApprovalHealth: func() approvals.Health { return r.approvals.Health() },
 		StaticDir: staticDir,
 	})
 }

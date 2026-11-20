@@ -2,12 +2,12 @@ package security
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"sync"
 	"time"
-	"crypto/subtle"
-	"net/http"
 )
 
 var ErrOAuthTransactionNotFound = errors.New("OAuth transaction not found")

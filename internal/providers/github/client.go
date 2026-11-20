@@ -290,11 +290,19 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, output 
 		if remaining == "0" || resp.Header.Get("Retry-After") != "" || strings.Contains(strings.ToLower(string(body)), "rate limit") {
 			retryAfter, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
 			resetUnix, _ := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64)
+			message := strings.TrimSpace(string(body))
+			if len(message) > 512 {
+				message = message[:512]
+			}
+			var resetAt time.Time
+			if resetUnix > 0 {
+				resetAt = time.Unix(resetUnix, 0)
+			}
 			return &RateLimitError{
-				Message:        strings.TrimSpace(string(body)),
+				Message:        message,
 				RetryAfter:     time.Duration(retryAfter) * time.Second,
 				Remaining:      remaining,
-				ResetAt:        time.Unix(resetUnix, 0),
+				ResetAt:        resetAt,
 				SecondaryLimit: remaining != "0",
 			}
 		}

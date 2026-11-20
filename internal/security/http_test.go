@@ -2,6 +2,7 @@ package security
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ansh44233/mcp/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestBearerMiddlewareAttachesVerifiedPrincipal(t *testing.T) {
@@ -114,5 +116,101 @@ func TestBearerMiddlewareRequiresDependencies(t *testing.T) {
 		return nil, nil
 	}, nil, nil); err == nil {
 		t.Fatal("expected missing resolver error")
+	}
+}
+
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+// This exercises the complete Streamable HTTP path: bearer verification,
+// principal resolution, request-context propagation and tool authorization.
+func TestBearerPrincipalReachesMCPToolExecution(t *testing.T) {
+	ctx := context.Background()
+	verifier := func(_ context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
+		if token != "integration-token" {
+			return nil, auth.ErrInvalidToken
+		}
+		return &auth.TokenInfo{UserID: "user-42", Expiration: time.Now().Add(time.Hour)}, nil
+	}
+	middleware, err := NewBearerMiddleware(verifier, nil, func(_ context.Context, info *auth.TokenInfo) (Principal, error) {
+		return Principal{
+			ID: info.UserID, TenantID: "tenant-7", MaxRisk: tools.RiskRead,
+			AllowedProviders: map[string]struct{}{"github": {}},
+			AllowedResources: map[string]map[string]struct{}{"github": {"acme/demo": {}}},
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("create bearer middleware: %v", err)
+	}
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "security-integration-test", Version: "0.0.1"}, nil)
+	registry := tools.NewRegistry()
+	definition := tools.Definition{
+		ID: "github_repository_get", Provider: "github", Name: "repository_get",
+		Description: "Read repository metadata.", Risk: tools.RiskRead,
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"owner":{"type":"string"},"repo":{"type":"string"}},"required":["owner","repo"],"additionalProperties":false}`),
+	}
+	if err := registry.Register(definition); err != nil {
+		t.Fatalf("register tool definition: %v", err)
+	}
+	executions := 0
+	executor := func(_ context.Context, _ tools.Definition, _ json.RawMessage) (any, error) {
+		executions++
+		return map[string]any{"ok": true}, nil
+	}
+	authorize := (Authorizer{}).AuthorizeRequest
+	if err := tools.RegisterMCPWithAuthorization(server, registry, executor, tools.ReadOnlyPolicy(), authorize); err != nil {
+		t.Fatalf("register MCP tool: %v", err)
+	}
+
+	mcpHandler := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return server },
+		&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true},
+	)
+	httpServer := httptest.NewServer(middleware(mcpHandler))
+	defer httpServer.Close()
+
+	httpClient := &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		request = request.Clone(request.Context())
+		request.Header.Set("Authorization", "Bearer integration-token")
+		return http.DefaultTransport.RoundTrip(request)
+	})}
+	client := mcp.NewClient(&mcp.Implementation{Name: "security-integration-client", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: httpServer.URL, HTTPClient: httpClient, DisableStandaloneSSE: true}, nil)
+	if err != nil {
+		t.Fatalf("connect MCP client: %v", err)
+	}
+	defer session.Close()
+
+	allowed, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "github_repository_get",
+		Arguments: map[string]any{"owner": "acme", "repo": "demo"},
+	})
+	if err != nil {
+		t.Fatalf("call allowed repository: %v", err)
+	}
+	if allowed.IsError {
+		t.Fatalf("allowed repository call returned MCP error: %+v", allowed)
+	}
+	if executions != 1 {
+		t.Fatalf("executor called %d times, want 1", executions)
+	}
+
+	denied, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "github_repository_get",
+		Arguments: map[string]any{"owner": "other", "repo": "private"},
+	})
+	if err != nil {
+		t.Fatalf("call out-of-scope repository: %v", err)
+	}
+	if !denied.IsError {
+		t.Fatal("out-of-scope repository call was not denied")
+	}
+	if executions != 1 {
+		t.Fatalf("out-of-scope call reached executor; executions=%d", executions)
 	}
 }

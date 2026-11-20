@@ -109,7 +109,6 @@ func run() int {
 	return 0
 }
 
-
 func mountDashboard(mux *http.ServeMux, dashboard http.Handler, bearerMiddleware func(http.Handler) http.Handler) {
 	if mux == nil || dashboard == nil {
 		panic("dashboard mux and handler are required")

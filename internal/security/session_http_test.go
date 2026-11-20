@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+func TestSessionMiddlewareRejectsNonOriginConfiguration(t *testing.T) {
+	store, err := NewSessionStore(1, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{
+		"", "https://console.example/", "https://console.example/path",
+		"https://user@console.example", "https://console.example?x=1",
+		"javascript://console.example", "//console.example", "https://",
+	} {
+		if _, err := NewSessionMiddleware(store, origin); err == nil {
+			t.Errorf("accepted invalid origin %q", origin)
+		}
+	}
+}
+
 func TestSessionMiddlewareRequiresSessionAndCSRFForWrites(t *testing.T) {
 	store, err := NewSessionStore(4, time.Minute)
 	if err != nil {

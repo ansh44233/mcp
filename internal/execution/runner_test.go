@@ -90,7 +90,7 @@ func TestExecuteRetriesOnlyExplicitlyIdempotentOperations(t *testing.T) {
 		RetryPolicy: RetryPolicy{
 			Idempotent: true,
 			MaxRetries: 2,
-			Retryable: func(err error) bool { return errors.Is(err, transient) },
+			Retryable:  func(err error) bool { return errors.Is(err, transient) },
 		},
 	}, func(context.Context) error {
 		if calls.Add(1) < 3 {

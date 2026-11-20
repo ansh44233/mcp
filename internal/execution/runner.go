@@ -8,10 +8,7 @@ import (
 	"time"
 )
 
-var (
-	ErrNilOperation = errors.New("execution operation is required")
-	ErrSaturated     = errors.New("execution capacity is unavailable")
-)
+var ErrNilOperation = errors.New("execution operation is required")
 
 // Config bounds concurrent work and the duration of each operation.
 type Config struct {
@@ -63,7 +60,7 @@ func New(config Config) *Runner {
 		config.MaxRetries = 5
 	}
 	return &Runner{
-		slots: make(chan struct{}, config.MaxConcurrent),
+		slots:   make(chan struct{}, config.MaxConcurrent),
 		timeout: config.Timeout,
 		retries: config.MaxRetries,
 	}

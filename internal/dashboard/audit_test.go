@@ -3,15 +3,15 @@ package dashboard
 import (
 	"net/http"
 	"net/http/httptest"
-	"testing"
 	"strings"
+	"testing"
 
 	"github.com/ansh44233/mcp/internal/audit"
 )
 
 func TestAuditHealthEndpoint(t *testing.T) {
 	config := Config{AuditHealth: func() audit.Health {
-		return audit.Health{Persistent:true, Healthy:true, LastSequence:12}
+		return audit.Health{Persistent: true, Healthy: true, LastSequence: 12}
 	}}
 	rec := httptest.NewRecorder()
 	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/audit/health", nil))

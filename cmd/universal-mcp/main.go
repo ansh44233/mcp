@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
- 	platformserver "github.com/ansh44233/mcp/internal/server"
+	platformserver "github.com/ansh44233/mcp/internal/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

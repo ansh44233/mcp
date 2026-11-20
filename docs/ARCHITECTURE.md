@@ -26,7 +26,7 @@ Until authentication, authorization, tenant isolation and remote transport harde
 - `internal/integrations`: connector lifecycle contract, concurrency-safe registry and serialized manager for initialization, rollback, unregister and graceful shutdown.
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
 - `internal/dashboard`: local operator console, health/status APIs, searchable tool catalog, connector inventory and audit-event APIs.
-- `internal/approvals`: tenant-scoped, single-use approval requests bound to exact tool argument digests. Approval decisions require an authenticated principal with explicit `CanApprove` permission, a separate requester identity, matching tenant and sufficient risk/tool/provider scope. The store is currently in-memory and is not connected to runtime write execution.
+- `internal/approvals`: tenant-scoped, single-use approval requests bound to exact tool argument digests. Approval decisions require an authenticated principal with explicit `CanApprove` permission, a separate requester identity, matching tenant and sufficient risk/tool/provider scope. The store is currently in-memory, provides tenant-scoped newest-first listing with bounded results and lazy expiry, and is not connected to runtime write execution.
 - `internal/audit`: bounded, concurrency-safe event store with optional append-only JSONL persistence, SHA-256 hash chaining and startup verification; stores actor/tenant IDs, tool/provider/risk metadata, outcome and duration, but never raw arguments or credentials.
 - `github.com/modelcontextprotocol/go-sdk`: protocol implementation and transports.
 

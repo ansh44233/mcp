@@ -55,9 +55,9 @@ func DiscoverOIDCAuthorizationEndpoints(ctx context.Context, issuer string, clie
 		return OIDCAuthorizationEndpoints{}, fmt.Errorf("read OIDC discovery: %w", err)
 	}
 	var metadata struct {
-		Issuer string `json:"issuer"`
+		Issuer                string `json:"issuer"`
 		AuthorizationEndpoint string `json:"authorization_endpoint"`
-		TokenEndpoint string `json:"token_endpoint"`
+		TokenEndpoint         string `json:"token_endpoint"`
 	}
 	if err := json.Unmarshal(body, &metadata); err != nil {
 		return OIDCAuthorizationEndpoints{}, fmt.Errorf("decode OIDC discovery: %w", err)

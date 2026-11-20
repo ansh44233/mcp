@@ -3,7 +3,7 @@ package security
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -97,12 +97,12 @@ func TestOIDCIntrospectionVerifierValidatesTokenAndIdentityClaims(t *testing.T) 
 
 	for _, token := range []string{"inactive", "expired", "wrong-audience", "wrong-issuer", "not-yet-valid"} {
 		t.Run(token, func(t *testing.T) {
-			if _, err := verifier(context.Background(), token, nil); !errorsIsInvalidToken(err) {
+			if _, err := verifier(context.Background(), token, nil); !errors.Is(err, auth.ErrInvalidToken) {
 				t.Fatalf("expected invalid token error, got %v", err)
 			}
 		})
 	}
-	if _, err := verifier(context.Background(), strings.Repeat("x", maxOIDCTokenBytes+1), nil); !errorsIsInvalidToken(err) {
+	if _, err := verifier(context.Background(), strings.Repeat("x", maxOIDCTokenBytes+1), nil); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("oversized token should be rejected, got %v", err)
 	}
 }
@@ -141,23 +141,29 @@ func TestNewOIDCIntrospectionVerifierRejectsUnsafeConfiguration(t *testing.T) {
 }
 
 func TestOIDCDiscoveryRejectsIssuerAndEndpointMismatch(t *testing.T) {
-	for name, discovery := range map[string]map[string]string{
-		"issuer mismatch": {
-			"issuer": "https://other.example", "introspection_endpoint": "https://issuer.example/introspect",
-		},
-		"endpoint host mismatch": {
-			"issuer": "https://issuer.example", "introspection_endpoint": "https://attacker.example/introspect",
-		},
-		"endpoint scheme mismatch": {
-			"issuer": "https://issuer.example", "introspection_endpoint": "http://issuer.example/introspect",
-		},
-	} {
+	for _, name := range []string{"issuer mismatch", "endpoint host mismatch", "endpoint scheme mismatch"} {
 		t.Run(name, func(t *testing.T) {
+			serverURL := ""
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				parsedIssuer, _ := url.Parse(serverURL)
+				discovery := map[string]string{
+					"issuer":                 serverURL,
+					"introspection_endpoint": serverURL + "/introspect",
+				}
+				switch name {
+				case "issuer mismatch":
+					discovery["issuer"] = "https://other.example"
+				case "endpoint host mismatch":
+					discovery["introspection_endpoint"] = "https://attacker.example/introspect"
+				case "endpoint scheme mismatch":
+					discovery["introspection_endpoint"] = "https://" + parsedIssuer.Host + "/introspect"
+				}
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(discovery)
 			}))
 			defer server.Close()
+			serverURL = server.URL
+
 			_, err := NewOIDCIntrospectionVerifier(context.Background(), OIDCIntrospectionConfig{
 				Issuer: server.URL, Audience: "audience", ClientID: "client", ClientSecret: "secret", HTTPClient: server.Client(),
 			})
@@ -166,10 +172,6 @@ func TestOIDCDiscoveryRejectsIssuerAndEndpointMismatch(t *testing.T) {
 			}
 		})
 	}
-}
-
-func errorsIsInvalidToken(err error) bool {
-	return err == auth.ErrInvalidToken
 }
 
 func TestIntrospectionAudienceAcceptsStringAndArray(t *testing.T) {
@@ -183,7 +185,7 @@ func TestIntrospectionAudienceAcceptsStringAndArray(t *testing.T) {
 		}
 	}
 	var invalid audiences
-	if err := json.Unmarshal([]byte(fmt.Sprintf("%q", url.Values{})), &invalid); err == nil {
+	if err := json.Unmarshal([]byte("42"), &invalid); err == nil {
 		t.Fatal("expected malformed audience to fail")
 	}
 }

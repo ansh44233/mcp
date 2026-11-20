@@ -162,7 +162,7 @@ func HandlerWithConfig(config Config) http.Handler {
 			return
 		}
 		var input struct {
-			Approve bool   `json:"approve"`
+			Approve *bool  `json:"approve"`
 			Reason  string `json:"reason"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
@@ -177,11 +177,15 @@ func HandlerWithConfig(config Config) http.Handler {
 			http.Error(w, "invalid decision payload", http.StatusBadRequest)
 			return
 		}
+		if input.Approve == nil {
+			http.Error(w, "approve is required", http.StatusBadRequest)
+			return
+		}
 		if len(input.Reason) > 512 {
 			http.Error(w, "reason exceeds 512 bytes", http.StatusBadRequest)
 			return
 		}
-		request, err := config.ApprovalStore.Decide(r.Context(), r.PathValue("id"), input.Approve, input.Reason)
+		request, err := config.ApprovalStore.Decide(r.Context(), r.PathValue("id"), *input.Approve, input.Reason)
 		if err != nil {
 			writeApprovalError(w, err)
 			return

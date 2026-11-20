@@ -176,7 +176,7 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 // another tenant's records and caps result size to keep operator views bounded.
 func (s *Store) List(ctx context.Context, limit int) ([]Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)
-	if !ok || principal.Validate() != nil {
+	if !ok || !principal.Authenticated || principal.Validate() != nil {
 		return nil, ErrForbidden
 	}
 	if limit <= 0 || limit > 100 {
@@ -256,7 +256,7 @@ func (s *Store) Consume(ctx context.Context, id string, definition tools.Definit
 
 func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)
-	if !ok || principal.Validate() != nil {
+	if !ok || !principal.Authenticated || principal.Validate() != nil {
 		return Request{}, ErrForbidden
 	}
 	s.mu.Lock()

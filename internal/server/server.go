@@ -12,6 +12,7 @@ import (
 
 	"github.com/ansh44233/mcp/internal/audit"
 	"github.com/ansh44233/mcp/internal/dashboard"
+	"github.com/ansh44233/mcp/internal/execution"
 	"github.com/ansh44233/mcp/internal/integrations"
 	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
 	"github.com/ansh44233/mcp/internal/security"
@@ -124,7 +125,9 @@ func NewRuntimeWithAudit(token, auditPath string) *Runtime {
 			panic(fmt.Errorf("register tool %q: %w", definition.ID, err))
 		}
 	}
-	if err := platformtools.RegisterMCPWithObserver(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).AuthorizeRequest, auditStore); err != nil {
+	runner := execution.New(execution.Config{MaxConcurrent: 16, Timeout: 20 * time.Second})
+	providerExecutor := boundedExecutor(runner, githubExecutor(githubClient))
+	if err := platformtools.RegisterMCPWithObserver(s, catalog, providerExecutor, platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).AuthorizeRequest, auditStore); err != nil {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 

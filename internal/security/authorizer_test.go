@@ -103,16 +103,17 @@ func TestLocalPrincipalIsExplicitlyReadOnly(t *testing.T) {
 	if err := principal.Validate(); err != nil {
 		t.Fatalf("local principal should validate: %v", err)
 	}
-	if err := (Authorizer{AllowLocalPrincipal: true}).Authorize(
-		WithPrincipal(context.Background(), principal),
-		tools.Definition{ID: "repo_read", Provider: "github", Risk: tools.RiskRead},
-	); err != nil {
+
+	ctx := WithPrincipal(context.Background(), principal)
+	authorizer := Authorizer{AllowLocalPrincipal: true}
+	if err := authorizer.Authorize(ctx, tools.Definition{
+		ID: "repo_read", Provider: "github", Risk: tools.RiskRead,
+	}); err != nil {
 		t.Fatalf("local read should be allowed: %v", err)
 	}
-	if err := (Authorizer{AllowLocalPrincipal: true}).Authorize(
-		WithPrincipal(context.Background(), principal),
-		tools.Definition{ID: "repo_write", Provider: "github", Risk: tools.RiskWrite},
-	); err == nil {
+	if err := authorizer.Authorize(ctx, tools.Definition{
+		ID: "repo_write", Provider: "github", Risk: tools.RiskWrite,
+	}); err == nil {
 		t.Fatal("local principal must not authorize write tools")
 	}
 }

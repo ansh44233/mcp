@@ -196,25 +196,37 @@ func DashboardHandler() http.Handler {
 			readOnly = false
 		}
 	}
+
 	definitions := githubToolDefinitions()
 	toolInfos := make([]dashboard.ToolInfo, 0, len(definitions)+1)
 	toolInfos = append(toolInfos, dashboard.ToolInfo{
-		ID: "platform_status", Provider: "platform", Name: "status",
-		Description: "Return server version, uptime and runtime capabilities.", Risk: "read",
+		ID:          "platform_status",
+		Provider:    "platform",
+		Name:        "status",
+		Description: "Return server version, uptime and runtime capabilities.",
+		Risk:        "read",
 	})
 	for _, definition := range definitions {
 		toolInfos = append(toolInfos, dashboard.ToolInfo{
-			ID: definition.ID, Provider: definition.Provider, Name: definition.Name,
-			Description: definition.Description, Risk: string(definition.Risk),
+			ID:          definition.ID,
+			Provider:    definition.Provider,
+			Name:        definition.Name,
+			Description: definition.Description,
+			Risk:        string(definition.Risk),
 		})
 	}
+
 	return dashboard.HandlerWithConfig(dashboard.Config{
-		Version: Version,
+		Version:    Version,
 		Transports: []string{"stdio", "streamable-http"},
-		Tools: toolInfos,
+		Tools:      toolInfos,
 		Connectors: []dashboard.ConnectorInfo{{
-			ID: metadata.ID, Name: metadata.Name, Version: metadata.Version,
-			Description: metadata.Description, Operations: operationNames, ReadOnly: readOnly,
+			ID:          metadata.ID,
+			Name:        metadata.Name,
+			Version:     metadata.Version,
+			Description: metadata.Description,
+			Operations:  operationNames,
+			ReadOnly:    readOnly,
 		}},
 	})
 }

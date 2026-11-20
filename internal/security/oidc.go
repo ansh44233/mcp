@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	maxOIDCTokenBytes       = 16 << 10
-	maxOIDCMetadataBytes    = 64 << 10
-	maxIntrospectionBytes   = 64 << 10
-	oidcRequestTimeout      = 5 * time.Second
+	maxOIDCTokenBytes     = 16 << 10
+	maxOIDCMetadataBytes  = 64 << 10
+	maxIntrospectionBytes = 64 << 10
+	oidcRequestTimeout    = 5 * time.Second
 )
 
 // OIDCIntrospectionConfig configures OAuth 2.0 token introspection discovered

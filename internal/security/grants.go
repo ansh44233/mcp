@@ -2,6 +2,7 @@ package security
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ansh44233/mcp/internal/tools"
+	"github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 const maxPrincipalGrantsBytes = 1 << 20

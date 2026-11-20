@@ -13,7 +13,9 @@ import (
 
 func TestPlatformStatusToolIsRegisteredAndCallable(t *testing.T) {
 	ctx := context.Background()
-	server := New()
+	runtime := NewRuntime("")
+	defer runtime.Close(context.Background())
+	server := runtime.Server
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -41,6 +43,11 @@ func TestPlatformStatusToolIsRegisteredAndCallable(t *testing.T) {
 	}
 	if result.StructuredContent == nil {
 		t.Fatal("platform_status did not return structured content")
+	}
+	auditResponse := httptest.NewRecorder()
+	runtime.DashboardHandler().ServeHTTP(auditResponse, httptest.NewRequest(http.MethodGet, "/api/v1/audit", nil))
+	if auditResponse.Code != http.StatusOK || !strings.Contains(auditResponse.Body.String(), "platform_status") {
+		t.Fatalf("platform_status call was not audited: %s", auditResponse.Body.String())
 	}
 }
 

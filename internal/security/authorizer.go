@@ -17,8 +17,8 @@ type Authorizer struct {
 }
 
 // Authorize requires a principal, validates its identity and tenant, then applies
-// tool, provider and risk scopes. Empty scope maps mean unrestricted within the
-// principal's tenant; MaxRisk is always enforced.
+// tool, provider, risk and resource scopes. Authenticated principals must carry an
+// explicit resource-scope map; a nil map fails closed. MaxRisk is always enforced.
 func (a Authorizer) Authorize(ctx context.Context, definition tools.Definition) error {
 	return a.AuthorizeRequest(ctx, definition, nil)
 }
@@ -53,6 +53,9 @@ func (a Authorizer) AuthorizeRequest(ctx context.Context, definition tools.Defin
 	}
 	if riskRank(definition.Risk) > riskRank(principal.MaxRisk) {
 		return fmt.Errorf("tool %q risk %q exceeds principal maximum %q", definition.ID, definition.Risk, principal.MaxRisk)
+	}
+	if principal.Authenticated && principal.AllowedResources == nil {
+		return fmt.Errorf("authenticated principal has no explicit resource scope")
 	}
 	if principal.AllowedResources != nil {
 		resource, err := resourceID(definition.Provider, arguments)

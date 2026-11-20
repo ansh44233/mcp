@@ -63,7 +63,6 @@ func TestDiscoverOIDCAuthorizationEndpointsRejectsUntrustedMetadata(t *testing.T
 	}
 }
 
-
 func TestValidateOIDCEndpointRequiresExactIssuerOrigin(t *testing.T) {
 	issuer, err := url.Parse("https://issuer.example:8443")
 	if err != nil {

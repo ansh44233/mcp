@@ -13,7 +13,6 @@ import (
 	"github.com/ansh44233/mcp/internal/security"
 )
 
-
 func TestMountDashboardProtectsAPIRoutesWhenBearerAuthIsConfigured(t *testing.T) {
 	dashboard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

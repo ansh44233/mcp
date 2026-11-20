@@ -83,7 +83,8 @@ export default function App() {
           <a className="selected" href="#overview">Overview</a>
           <a href="#connectors">Connectors</a>
           <a href="#tools">Tool catalog</a>
-          <a href="#audit">Audit log</a>\n          <a href="#approvals">Approvals</a>
+          <a href="#audit">Audit log</a>
+          <a href="#approvals">Approvals</a>
           <a href="#workflows">Workflows</a>
         </nav>
         <div className="sidebar-foot">LOCAL CONTROL PLANE<br />READ-ONLY CONSOLE</div>

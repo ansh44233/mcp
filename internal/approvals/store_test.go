@@ -143,3 +143,40 @@ func TestApprovalRequiresExplicitApproverPermission(t *testing.T) {
 		t.Fatalf("authorized approver should be able to decide: %+v %v", approved, err)
 	}
 }
+
+func TestListIsTenantScopedNewestFirstAndExpiresPending(t *testing.T) {
+	store := NewStore(10)
+	now := time.Now().UTC()
+	store.now = func() time.Time { return now }
+	first, err := store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{}`), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Millisecond)
+	second, err := store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{"x":1}`), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Create(principal("bob", "tenant-b", true), writeTool(), json.RawMessage(`{}`), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(2 * time.Second)
+	listed, err := store.List(principal("alice", "tenant-a", true), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 2 || listed[0].ID != second.ID || listed[1].ID != first.ID {
+		t.Fatalf("unexpected tenant list ordering/content: %+v", listed)
+	}
+	if listed[1].Status != Expired {
+		t.Fatalf("pending request should become expired when listed, got %s", listed[1].Status)
+	}
+	limited, err := store.List(principal("alice", "tenant-a", true), 1)
+	if err != nil || len(limited) != 1 || limited[0].ID != second.ID {
+		t.Fatalf("limit not applied: %+v %v", limited, err)
+	}
+	if _, err := store.List(context.Background(), 10); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("missing principal should be rejected: %v", err)
+	}
+}

@@ -11,13 +11,13 @@ import (
 // Principal is identity established by trusted server-side authentication.
 // Never construct one from MCP tool arguments or other client-controlled data.
 type Principal struct {
-	ID                string
-	TenantID          string
-	Authenticated     bool
-	Authentication    string
-	MaxRisk           tools.Risk
-	AllowedTools      map[string]struct{}
-	AllowedProviders  map[string]struct{}
+	ID               string
+	TenantID         string
+	Authenticated    bool
+	Authentication   string
+	MaxRisk          tools.Risk
+	AllowedTools     map[string]struct{}
+	AllowedProviders map[string]struct{}
 }
 
 type principalContextKey struct{}

@@ -193,3 +193,39 @@ func TestFileStoreDoesNotPublishAfterAppendFailure(t *testing.T) {
 		t.Fatalf("read from closed store should remain available: %v", err)
 	}
 }
+
+func TestWorkflowCancellationClosesRunningCheckpoint(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cancel.jsonl")
+	ctx := workflowContext("alice", "tenant-a", true)
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := store.Create(ctx, "cancel active", []string{"tool_read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.StartStep(ctx, item.ID, "step-01"); err != nil {
+		t.Fatal(err)
+	}
+	cancelled, err := store.Cancel(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled.Status != Cancelled || cancelled.Steps[0].Status != Cancelled ||
+		cancelled.Steps[0].CompletedAt == nil || cancelled.Steps[0].ErrorCode != "cancelled_by_owner" {
+		t.Fatalf("cancellation must close active checkpoint: %+v", cancelled)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recovered.Close()
+	got, err := recovered.Get(ctx, item.ID)
+	if err != nil || got.Status != Cancelled || got.Steps[0].Status != Cancelled {
+		t.Fatalf("cancelled workflow did not recover: %+v %v", got, err)
+	}
+}

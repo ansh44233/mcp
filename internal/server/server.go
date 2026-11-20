@@ -261,7 +261,7 @@ func (r *Runtime) DashboardHandler() http.Handler {
 		Tools:        toolInfos,
 		Connectors:   connectors,
 		HealthChecks: healthChecks,
-		AuditEvents: func(limit int) []audit.Event { return r.audit.List(limit) },
+		AuditEvents:  func(limit int) []audit.Event { return r.audit.List(limit) },
 	})
 }
 

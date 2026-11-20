@@ -71,6 +71,8 @@ func (c *Connector) Operations() []integrations.Operation {
 		{ID: "commits_list", Description: "List repository commits", ReadOnly: true},
 		{ID: "issues_list", Description: "List repository issues", ReadOnly: true},
 		{ID: "pull_requests_list", Description: "List repository pull requests", ReadOnly: true},
+		{ID: "file_get", Description: "Read a text file from a repository", ReadOnly: true},
+		{ID: "tree_get", Description: "List a repository Git tree recursively", ReadOnly: true},
 	}
 }
 

@@ -42,6 +42,7 @@ func TestRegisterMCPPublishesAndExecutesCatalogTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer serverSession.Close()
+
 	client := mcp.NewClient(&mcp.Implementation{Name: "catalog-client", Version: "0.0.1"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
@@ -58,7 +59,8 @@ func TestRegisterMCPPublishesAndExecutesCatalogTools(t *testing.T) {
 	}
 
 	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name: definition.ID, Arguments: map[string]any{"owner": "octo"},
+		Name:      definition.ID,
+		Arguments: map[string]any{"owner": "octo"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -74,17 +76,35 @@ func TestRegisterMCPPublishesAndExecutesCatalogTools(t *testing.T) {
 func TestRegisterMCPRejectsMissingDependencies(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "catalog-test", Version: "0.0.1"}, nil)
 	registry := NewRegistry()
-	executor := Executor(func(context.Context, Definition, json.RawMessage) (any, error) { return nil, nil })
-	for _, test := range []struct {
-		name string
-		server *mcp.Server
-		registry *Registry
-		executor Executor
+	executor := Executor(func(context.Context, Definition, json.RawMessage) (any, error) {
+		return nil, nil
+	})
+	tests := []struct {
+		name      string
+		server    *mcp.Server
+		registry  *Registry
+		executor  Executor
 	}{
-		{"nil server", nil, registry, executor},
-		{"nil registry", server, nil, executor},
-		{"nil executor", server, registry, nil},
-	} {
+		{
+			name:     "nil server",
+			server:   nil,
+			registry: registry,
+			executor: executor,
+		},
+		{
+			name:     "nil registry",
+			server:   server,
+			registry: nil,
+			executor: executor,
+		},
+		{
+			name:     "nil executor",
+			server:   server,
+			registry: registry,
+			executor: nil,
+		},
+	}
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if err := RegisterMCP(test.server, test.registry, test.executor); err == nil {
 				t.Fatal("expected configuration error")

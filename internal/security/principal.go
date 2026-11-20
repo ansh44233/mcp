@@ -22,6 +22,12 @@ type Principal struct {
 
 type principalContextKey struct{}
 
+// LocalPrincipal returns an explicitly unauthenticated, read-only identity for
+// local stdio and loopback transports. It is not suitable for remote access.
+func LocalPrincipal() Principal {
+	return Principal{ID: "local", TenantID: "local", Authentication: "local", MaxRisk: tools.RiskRead}
+}
+
 // WithPrincipal attaches a server-established principal to a request context.
 // The principal's scope maps are copied to prevent mutation by the caller.
 func WithPrincipal(ctx context.Context, principal Principal) context.Context {

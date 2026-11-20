@@ -48,7 +48,7 @@ func (s *Store) ObserveToolCall(ctx context.Context, definition tools.Definition
 	}
 	event := Event{
 		Timestamp: time.Now().UTC(),
-		ToolID: definition.ID, Provider: definition.Provider,
+		ToolID:    definition.ID, Provider: definition.Provider,
 		Risk: definition.Risk, Outcome: outcome, Duration: duration,
 	}
 	if principal, ok := security.PrincipalFromContext(ctx); ok {

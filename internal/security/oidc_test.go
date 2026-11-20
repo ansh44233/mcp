@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -111,6 +110,5 @@ func signTestOIDCToken(t *testing.T, key *rsa.PrivateKey, issuer, audience, subj
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = strconv.FormatInt(expiry.Unix(), 10)
 	return oidctest.SignIDToken(key, "universal-mcp-test", oidc.RS256, string(claims))
 }

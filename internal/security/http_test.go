@@ -45,7 +45,7 @@ func TestBearerMiddlewareAttachesVerifiedPrincipal(t *testing.T) {
 		if !principal.Authenticated || principal.Authentication != "bearer" || principal.ID != "user-42" || principal.TenantID != "tenant-7" {
 			t.Fatalf("unexpected principal: %+v", principal)
 		}
-		if err := (Authorizer{}).Authorize(r.Context(), tools.Definition{ID: "github_repo_read", Provider: "github", Risk: tools.RiskRead}); err != nil {
+		if err := (Authorizer{}).AuthorizeRequest(r.Context(), tools.Definition{ID: "github_repo_read", Provider: "github", Risk: tools.RiskRead}, json.RawMessage(`{"owner":"acme","repo":"demo"}`)); err != nil {
 			t.Fatalf("verified principal rejected: %v", err)
 		}
 		w.WriteHeader(http.StatusNoContent)

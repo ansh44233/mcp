@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"encoding/json"
+	"context"
 	"net/http"
 	"runtime"
 	"strings"
@@ -32,6 +33,7 @@ type Config struct {
 	Transports []string
 	Tools      []ToolInfo
 	Connectors []ConnectorInfo
+	HealthChecks map[string]func(context.Context) error
 }
 
 type status struct {
@@ -94,6 +96,20 @@ func HandlerWithConfig(config Config) http.Handler {
 	})
 	mux.HandleFunc("GET /api/v1/connectors", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"connectors": config.Connectors, "count": len(config.Connectors)})
+	})
+	mux.HandleFunc("POST /api/v1/connectors/{id}/health-check", func(w http.ResponseWriter, r *http.Request) {
+		check, ok := config.HealthChecks[r.PathValue("id")]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := check(ctx); err != nil {
+			writeJSON(w, map[string]any{"connector_id": r.PathValue("id"), "status": "unhealthy", "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"connector_id": r.PathValue("id"), "status": "healthy"})
 	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

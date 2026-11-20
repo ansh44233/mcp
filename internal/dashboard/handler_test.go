@@ -2,13 +2,13 @@ package dashboard
 
 import (
 	"context"
-
-	"github.com/ansh44233/mcp/internal/audit"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/ansh44233/mcp/internal/audit"
 )
 
 func testConfig() Config {
@@ -140,7 +140,9 @@ func TestConnectorHealthCheckEndpoint(t *testing.T) {
 func TestAuditEventsEndpoint(t *testing.T) {
 	config := testConfig()
 	config.AuditEvents = func(limit int) []audit.Event {
-		if limit != 2 { t.Errorf("limit = %d, want 2", limit) }
+		if limit != 2 {
+			t.Errorf("limit = %d, want 2", limit)
+		}
 		return []audit.Event{{Sequence: 7, ToolID: "github_repository_get", Outcome: "succeeded"}}
 	}
 	rec := httptest.NewRecorder()

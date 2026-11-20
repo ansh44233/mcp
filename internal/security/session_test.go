@@ -1,7 +1,8 @@
 package security
 
 import (
-	"net/http"\n\t"net/http/httptest"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 

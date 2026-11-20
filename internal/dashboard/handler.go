@@ -1,8 +1,8 @@
 package dashboard
 
 import (
-	"encoding/json"
 	"context"
+	"encoding/json"
 	"net/http"
 	"runtime"
 	"strings"
@@ -29,10 +29,10 @@ type ConnectorInfo struct {
 }
 
 type Config struct {
-	Version    string
-	Transports []string
-	Tools      []ToolInfo
-	Connectors []ConnectorInfo
+	Version      string
+	Transports   []string
+	Tools        []ToolInfo
+	Connectors   []ConnectorInfo
 	HealthChecks map[string]func(context.Context) error
 }
 

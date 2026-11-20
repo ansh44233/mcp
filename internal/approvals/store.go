@@ -190,6 +190,9 @@ func (s *Store) List(ctx context.Context, limit int) ([]Request, error) {
 		if request.TenantID != principal.TenantID {
 			continue
 		}
+		if !principal.CanApprove && request.RequesterID != principal.ID {
+			continue
+		}
 		if request.Status == Pending && !now.Before(request.ExpiresAt) {
 			request.Status = Expired
 			if err := s.persistLocked(request); err != nil {
@@ -262,7 +265,8 @@ func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
-	if !exists || request.TenantID != principal.TenantID {
+	if !exists || request.TenantID != principal.TenantID ||
+		(!principal.CanApprove && request.RequesterID != principal.ID) {
 		return Request{}, ErrNotFound
 	}
 	if request.Status == Pending && !s.now().Before(request.ExpiresAt) {

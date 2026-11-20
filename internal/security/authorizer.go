@@ -3,6 +3,8 @@ package security
 import (
 	"context"
 	"fmt"
+	"encoding/json"
+	"strings"
 
 	"github.com/ansh44233/mcp/internal/tools"
 )
@@ -18,6 +20,12 @@ type Authorizer struct {
 // tool, provider and risk scopes. Empty scope maps mean unrestricted within the
 // principal's tenant; MaxRisk is always enforced.
 func (a Authorizer) Authorize(ctx context.Context, definition tools.Definition) error {
+	return a.AuthorizeRequest(ctx, definition, nil)
+}
+
+// AuthorizeRequest applies identity, capability and provider-resource scopes
+// after the MCP SDK has validated the tool arguments.
+func (a Authorizer) AuthorizeRequest(ctx context.Context, definition tools.Definition, arguments json.RawMessage) error {
 	principal, ok := PrincipalFromContext(ctx)
 	if !ok {
 		return fmt.Errorf("missing request principal")
@@ -46,6 +54,19 @@ func (a Authorizer) Authorize(ctx context.Context, definition tools.Definition) 
 	if riskRank(definition.Risk) > riskRank(principal.MaxRisk) {
 		return fmt.Errorf("tool %q risk %q exceeds principal maximum %q", definition.ID, definition.Risk, principal.MaxRisk)
 	}
+	if principal.AllowedResources != nil {
+		resource, err := resourceID(definition.Provider, arguments)
+		if err != nil {
+			return err
+		}
+		allowed, providerScoped := principal.AllowedResources[definition.Provider]
+		if !providerScoped {
+			return fmt.Errorf("provider %q has no resource scope", definition.Provider)
+		}
+		if _, ok := allowed[resource]; !ok {
+			return fmt.Errorf("resource %q is outside principal resource scope", resource)
+		}
+	}
 	return nil
 }
 
@@ -60,4 +81,22 @@ func riskRank(risk tools.Risk) int {
 	default:
 		return 0
 	}
+}
+
+func resourceID(provider string, arguments json.RawMessage) (string, error) {
+	if provider != "github" {
+		return "", fmt.Errorf("resource scoping is not implemented for provider %q", provider)
+	}
+	var input struct {
+		Owner string `json:"owner"`
+		Repo string `json:"repo"`
+	}
+	if len(arguments) == 0 || json.Unmarshal(arguments, &input) != nil {
+		return "", fmt.Errorf("cannot determine GitHub resource from tool arguments")
+	}
+	owner, repo := strings.ToLower(strings.TrimSpace(input.Owner)), strings.ToLower(strings.TrimSpace(input.Repo))
+	if owner == "" || repo == "" || strings.Contains(owner, "/") || strings.Contains(repo, "/") {
+		return "", fmt.Errorf("invalid GitHub resource identity")
+	}
+	return owner + "/" + repo, nil
 }

@@ -44,7 +44,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Read-only `/healthz`, `/api/v1/status`, `/api/v1/tools`, `/api/v1/connectors` and `/api/v1/audit` endpoints.
 - Dashboard tool inventory is generated from the same provider tool definitions used to publish MCP capabilities; supports text search and provider filtering.
 - Connector inventory is sourced from the same managed connector registry used by MCP execution and offers an explicit, bounded health-check action for registered providers.
-- Durable append-only JSONL audit trail (enabled by default in the executable at `./data/audit.jsonl`) uses a SHA-256 hash chain, verifies it on startup and records denied, failed and successful MCP tool calls with actor/tenant identity, tool metadata, outcome and duration; raw arguments, credentials and raw errors are excluded.
+- Optional durable workflow checkpoint journal via `MCP_WORKFLOW_PATH` (disabled by default); when configured, the runtime verifies and recovers it at startup and closes it during graceful shutdown. Interrupted running steps are marked failed rather than automatically replayed. This stores workflow state only; it does not execute tools or expose workflow APIs. The journal is tenant-scoped at the store layer and uses a SHA-256 hash chain, but requires single-process ownership and has no external tamper anchor.\n- Durable append-only JSONL audit trail (enabled by default in the executable at `./data/audit.jsonl`) uses a SHA-256 hash chain, verifies it on startup and records denied, failed and successful MCP tool calls with actor/tenant identity, tool metadata, outcome and duration; raw arguments, credentials and raw errors are excluded.
 - Read-only `/api/v1/audit` endpoint exposes newest-first audit events with a bounded result limit; `/api/v1/audit/health` reports persistence and integrity status.
 - Graceful HTTP shutdown and structured server logs.
 - HTTP mode restricted to loopback addresses until remote authentication and authorization are implemented.
@@ -55,7 +55,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - More complete connector SDK, runtime status reporting and dynamic registration.
 - GitHub write operations behind explicit authorization and approval policies.
 - Production token-verifier and principal-resolver configuration, trusted tenant-to-resource scope provisioning, secret-provider integration, and externally anchored/tamper-resistant audit storage. The local hash chain is tamper-evident but an attacker able to rewrite the entire file can recompute it. Resource allowlists are enforced when supplied by a trusted principal resolver; tenant IDs alone do not imply isolation.
-- Workflow execution, retries and durable checkpoints.
+- Workflow execution, worker scheduling, authenticated workflow APIs, and dashboard workflow controls. The optional journal persists workflow metadata/checkpoints only; it does not execute tools.
 - Full dashboard management views for connectors, sessions, workflows, approvals, logs and security; current connector/tool views are read-only.
 - Additional providers and cross-provider search.
 - MCP compatibility, security, performance and reliability benchmarks.

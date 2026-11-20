@@ -129,8 +129,18 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 		s.requests[id] = request
 		return request, ErrExpired
 	}
-	if request.RequesterID == principal.ID {
+	if request.RequesterID == principal.ID || riskRank(principal.MaxRisk) < riskRank(request.Risk) {
 		return Request{}, ErrForbidden
+	}
+	if len(principal.AllowedTools) > 0 {
+		if _, ok := principal.AllowedTools[request.ToolID]; !ok {
+			return Request{}, ErrForbidden
+		}
+	}
+	if len(principal.AllowedProviders) > 0 {
+		if _, ok := principal.AllowedProviders[request.Provider]; !ok {
+			return Request{}, ErrForbidden
+		}
 	}
 	request.ApproverID = principal.ID
 	if len(reason) > 512 {
@@ -138,7 +148,9 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 	}
 	request.Reason = reason
 	request.Status = Rejected
-	if approve { request.Status = Approved }
+	if approve {
+		request.Status = Approved
+	}
 	request.DecidedAt = &now
 	s.requests[id] = request
 	return request, nil
@@ -156,7 +168,9 @@ func (s *Store) Consume(ctx context.Context, id string, definition tools.Definit
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
-	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
+	if !exists || request.TenantID != principal.TenantID {
+		return Request{}, ErrNotFound
+	}
 	if request.Status != Approved {
 		return Request{}, ErrInvalidState
 	}
@@ -181,7 +195,9 @@ func (s *Store) Consume(ctx context.Context, id string, definition tools.Definit
 
 func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)
-	if !ok || principal.Validate() != nil { return Request{}, ErrForbidden }
+	if !ok || principal.Validate() != nil {
+		return Request{}, ErrForbidden
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
@@ -191,4 +207,17 @@ func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 		s.requests[id] = request
 	}
 	return request, nil
+}
+
+func riskRank(risk tools.Risk) int {
+	switch risk {
+	case tools.RiskRead:
+		return 1
+	case tools.RiskWrite:
+		return 2
+	case tools.RiskDestructive:
+		return 3
+	default:
+		return 0
+	}
 }

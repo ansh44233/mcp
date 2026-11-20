@@ -18,6 +18,13 @@ func principal(id, tenant string, authenticated bool) context.Context {
 	})
 }
 
+func approver(id, tenant string) context.Context {
+	return security.WithPrincipal(context.Background(), security.Principal{
+		ID: id, TenantID: tenant, Authenticated: true, Authentication: "test",
+		CanApprove: true, MaxRisk: tools.RiskDestructive,
+	})
+}
+
 func writeTool() tools.Definition {
 	return tools.Definition{ID: "repo_update", Provider: "github", Risk: tools.RiskWrite}
 }
@@ -29,13 +36,13 @@ func TestApprovalRequiresIndependentSameTenantApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Decide(principal("alice", "tenant-a", true), request.ID, true, "self"); !errors.Is(err, ErrForbidden) {
+	if _, err := store.Decide(approver("alice", "tenant-a"), request.ID, true, "self"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("self approval should be forbidden: %v", err)
 	}
-	if _, err := store.Decide(principal("bob", "tenant-b", true), request.ID, true, "cross tenant"); !errors.Is(err, ErrNotFound) {
+	if _, err := store.Decide(approver("bob", "tenant-b"), request.ID, true, "cross tenant"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-tenant lookup should be hidden: %v", err)
 	}
-	approved, err := store.Decide(principal("bob", "tenant-a", true), request.ID, true, "reviewed")
+	approved, err := store.Decide(approver("bob", "tenant-a"), request.ID, true, "reviewed")
 	if err != nil || approved.Status != Approved {
 		t.Fatalf("approval failed: %+v %v", approved, err)
 	}
@@ -48,7 +55,7 @@ func TestConsumeBindsExactArgumentsAndIsSingleUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Decide(principal("bob", "tenant-a", true), request.ID, true, "ok"); err != nil {
+	if _, err := store.Decide(approver("bob", "tenant-a"), request.ID, true, "ok"); err != nil {
 		t.Fatal(err)
 	}
 	changed := json.RawMessage(`{"owner":"acme","repo":"other"}`)
@@ -87,7 +94,7 @@ func TestApprovalExpires(t *testing.T) {
 		t.Fatal(err)
 	}
 	now = now.Add(2 * time.Second)
-	if _, err := store.Decide(principal("bob", "tenant-a", true), request.ID, true, "late"); !errors.Is(err, ErrExpired) {
+	if _, err := store.Decide(approver("bob", "tenant-a"), request.ID, true, "late"); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expected expiry, got %v", err)
 	}
 }
@@ -119,5 +126,20 @@ func TestConcurrentConsumeOnlySucceedsOnce(t *testing.T) {
 	wg.Wait()
 	if successes != 1 {
 		t.Fatalf("expected exactly one successful consume, got %d", successes)
+	}
+}
+
+func TestApprovalRequiresExplicitApproverPermission(t *testing.T) {
+	store := NewStore(10)
+	request, err := store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Decide(principal("bob", "tenant-a", true), request.ID, true, "no approval role"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("authenticated principal without approval permission should be denied: %v", err)
+	}
+	approved, err := store.Decide(approver("carol", "tenant-a"), request.ID, true, "reviewed")
+	if err != nil || approved.Status != Approved {
+		t.Fatalf("authorized approver should be able to decide: %+v %v", approved, err)
 	}
 }

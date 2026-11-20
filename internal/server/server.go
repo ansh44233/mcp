@@ -12,7 +12,8 @@ import (
 
 	"github.com/ansh44233/mcp/internal/dashboard"
 	"github.com/ansh44233/mcp/internal/integrations"
-	githubprovider "github.com/ansh44233/mcp/internal/providers/github"\n\t"github.com/ansh44233/mcp/internal/security"
+	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
+	"github.com/ansh44233/mcp/internal/security"
 	platformtools "github.com/ansh44233/mcp/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

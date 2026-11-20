@@ -3,10 +3,10 @@ package security
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"sync"
-	"sync/atomic"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )

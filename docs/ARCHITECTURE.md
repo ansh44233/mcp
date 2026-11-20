@@ -12,47 +12,56 @@ The default mode for local MCP hosts. The process communicates through stdin/std
 
 ### Streamable HTTP
 
-Enabled with `-transport http`. The current foundation uses the SDK's Streamable HTTP handler in stateless mode and serves the operator dashboard from the same HTTP server.
+Enabled with `-transport http`. The runtime uses the SDK's Streamable HTTP handler in stateless mode and serves the operator dashboard from the same HTTP server.
 
-Until authentication, authorization, tenant isolation and remote transport hardening are implemented, HTTP binding is restricted to loopback addresses. This is an intentional security boundary.
+HTTP binding is restricted to loopback addresses. The production runtime does not yet configure a bearer-token verifier and trusted principal resolver for remote access. This is an intentional security boundary, not a claim of remote multi-user support.
 
 ## Current components
 
 - `cmd/universal-mcp`: process entry point, signal handling, transport selection, HTTP lifecycle and bounded runtime shutdown.
-- `internal/server.Runtime`: owns the MCP server and connector manager; `Close` shuts down managed connectors with the caller's deadline.
+- `internal/server.Runtime`: owns the MCP server, connector manager, bounded execution runner and audit store; `Close` shuts down managed resources with the caller's deadline.
 - `internal/server`: MCP server construction, built-in platform tools, catalog registration and provider tool dispatch.
-- `internal/tools`: provider-neutral tool definitions, risk metadata, schema validation and MCP publication bridge.
-- `internal/execution`: reusable bounded operation runner with concurrency limits, cooperative deadlines, cancellation while waiting for capacity and explicitly idempotent, classifier-gated retries. The server wraps GitHub provider execution with this runner (16 concurrent calls, 20-second global maximum deadline). Trusted server-side policy assigns shorter per-tool deadlines: repository metadata 8 seconds, branch/commit/issue/pull-request lists 12 seconds, file reads 10 seconds and recursive trees 20 seconds. A per-operation value can only shorten, never extend, the runner's global maximum. Current provider operations have no retry classifier configured, so they are not retried; future retries require explicit transient-error semantics per operation.
+- `internal/tools`: provider-neutral tool definitions, risk metadata, schema validation, execution policy and MCP publication bridge.
+- `internal/execution`: bounded operation runner with concurrency limits, cooperative deadlines, cancellation while waiting for capacity and explicitly idempotent, classifier-gated retries. GitHub provider execution is wrapped by this runner (16 concurrent calls, 20-second global maximum deadline). Trusted server-side policy assigns shorter per-tool deadlines: repository metadata 8 seconds, branch/commit/issue/pull-request lists 12 seconds, file reads 10 seconds and recursive trees 20 seconds. Current provider operations have no retry classifier configured, so they are not automatically retried.
 - `internal/integrations`: connector lifecycle contract, concurrency-safe registry and serialized manager for initialization, rollback, unregister and graceful shutdown.
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
-- `internal/dashboard`: local operator console, health/status APIs, searchable tool catalog, connector inventory and audit-event APIs.
-- `internal/approvals`: tenant-scoped, single-use approval requests bound to exact tool argument digests. Approval decisions require an authenticated principal with explicit `CanApprove` permission, a separate requester identity, matching tenant and sufficient risk/tool/provider scope. The store is currently in-memory, provides tenant-scoped newest-first listing with bounded results and lazy expiry, and is not connected to runtime write execution.
-- `internal/audit`: bounded, concurrency-safe event store with optional append-only JSONL persistence, SHA-256 hash chaining and startup verification; stores actor/tenant IDs, tool/provider/risk metadata, outcome and duration, but never raw arguments or credentials.
+- `internal/dashboard`: dashboard API, local operator console fallback and static React application serving. The API exposes health/status, tool and connector inventory, connector health checks, audit events and audit integrity status.
+- `dashboard/`: independently built React/TypeScript operator UI, with live runtime status, connector inventory, searchable tool catalog, health-check actions and audit visibility. Build with `npm install` and `npm run build`; the Go server serves `dashboard/dist` by default in HTTP mode and falls back to its embedded console if the build is absent.
+- `internal/approvals`: tenant-scoped, single-use approval requests bound to exact tool argument digests. Decisions require an authenticated principal with explicit `CanApprove` permission, a different requester identity, matching tenant and sufficient risk/tool/provider scope. The store supports bounded tenant-scoped listing and optional append-only JSONL persistence through `NewFileStore`. It is not yet wired into runtime write-tool execution.
+- `internal/security`: principal validation, fail-closed tool/provider/risk/resource authorization and a bearer middleware adapter that requires a host-supplied token verifier and trusted principal resolver.
+- `internal/audit`: bounded, concurrency-safe event store with optional append-only JSONL persistence, SHA-256 hash chaining and startup verification. Events contain actor/tenant IDs, tool/provider/risk metadata, outcome and duration, but never raw arguments or credentials.
 - `github.com/modelcontextprotocol/go-sdk`: protocol implementation and transports.
 
 ## Tool registration and execution
 
-Provider adapters expose typed, read-only operations. The server maps each operation to a provider-neutral tool definition containing a stable ID, provider ID, description, risk classification and JSON input schema. The catalog validates metadata and provides deterministic discovery. The MCP bridge publishes catalog entries through the official SDK and forwards validated arguments to an executor.
+Provider adapters expose typed, read-only operations. The server maps each operation to a provider-neutral tool definition containing a stable ID, provider ID, description, risk classification and JSON input schema. The catalog validates metadata and provides deterministic discovery. The MCP bridge publishes catalog entries through the official SDK and forwards schema-validated arguments to an executor.
 
-The server constructs providers through the connector manager, which initializes adapters before registry publication and rolls back failed registrations. On process termination, the entry point shuts down the transport and then closes the runtime with a bounded deadline. The manager attempts all connector shutdowns and retains failed entries so a caller can retry. The first GitHub adapter currently exposes repository metadata, branches, commits, issues, pull requests, individual text-file reads and recursive Git tree listing. File reads decode GitHub's base64 payload, reject binary encodings and enforce a 1 MiB decoded-file limit. Recursive tree responses preserve GitHub's `truncated` flag so callers can detect incomplete results. The REST client uses GET-only requests, bounded pagination, a request timeout, context cancellation and a response-size limit. Primary and secondary rate-limit responses are returned as typed errors with retry-after and reset metadata when supplied. `GITHUB_TOKEN` is optional and is read from the process environment; it is never stored in the repository.
+The server constructs providers through the connector manager, which initializes adapters before registry publication and rolls back failed registrations. On process termination, the entry point shuts down the transport and then closes the runtime with a bounded deadline. The manager attempts all connector shutdowns and retains failed entries so a caller can retry. The GitHub adapter currently exposes repository metadata, branches, commits, issues, pull requests, individual text-file reads and recursive Git tree listing. File reads decode GitHub's base64 payload, reject binary encodings and enforce a 1 MiB decoded-file limit. Recursive tree responses preserve GitHub's `truncated` flag so callers can detect incomplete results. The REST client uses GET-only requests, bounded pagination, a request timeout, context cancellation and a response-size limit. Primary and secondary rate-limit responses are returned as typed errors with retry-after and reset metadata when supplied. `GITHUB_TOKEN` is optional and read from the process environment; it is never stored in the repository.
 
-The dashboard is built from the same runtime instance used by MCP execution: it receives tool metadata from the same `githubToolDefinitions` used for MCP catalog registration, and connector metadata/operations and health checks from the same managed connector registry. This avoids a second independently initialized GitHub connector in HTTP mode. It exposes read-only `/api/v1/tools` and `/api/v1/connectors` inventory endpoints, plus an explicit `POST /api/v1/connectors/{id}/health-check` action. Health checks have a 10-second context deadline and invoke only the registered connector's fixed health-check implementation; the GitHub check targets a fixed public repository rather than accepting an arbitrary URL. Tool search and provider filtering are client-side presentation over the catalog API. The dashboard also renders recent metadata-only audit events and audit persistence/integrity health.
+The dashboard is built from the same runtime instance used by MCP execution. Tool metadata comes from the same definitions used for MCP catalog registration, and connector metadata, operations and health checks come from the same managed connector registry. It exposes `GET /api/v1/tools`, `GET /api/v1/connectors`, and `POST /api/v1/connectors/{id}/health-check`. Health checks have a 10-second context deadline and invoke only the registered connector's fixed health-check implementation; they do not accept arbitrary URLs. Audit events and persistence/integrity health are available through `GET /api/v1/audit` and `GET /api/v1/audit/health`. The React UI is a read-only operator surface; it does not yet manage connector installation, sessions, workflows or approvals.
 
-The MCP bridge applies an execution-time risk policy after schema validation and before provider execution. The runtime uses a read-only policy: write, destructive and unknown-risk tools are rejected, and an optional tool allowlist can further restrict access. `internal/security` defines a typed `Principal`, defensive context helpers and a fail-closed `Authorizer` that checks authentication state, tool/provider scopes, a per-principal risk ceiling and optional provider-resource allowlists. The MCP authorization callback receives schema-validated arguments and enforces GitHub repository scopes using a case-insensitive `owner/repo` identity; a non-nil resource map fails closed for providers without a matching scope or a supported resource resolver. The MCP bridge also accepts an authorization callback so a transport layer can evaluate the trusted request context immediately before execution. An optional execution observer records `denied`, `failed`, `succeeded` and invalid-request outcomes; the runtime connects this observer to a durable local audit store by default and exposes newest-first events through `GET /api/v1/audit`; `GET /api/v1/audit/health` reports persistence and integrity status. The audit log is append-only JSONL with SHA-256 hash chaining and startup verification. Hash chaining detects modification of records within the existing chain, but cannot prevent a privileged attacker from rewriting the complete file and recomputing the hashes.
+The MCP bridge applies an execution-time risk policy after schema validation and before provider execution. The runtime uses a read-only policy: write, destructive and unknown-risk tools are rejected, and an optional tool allowlist can further restrict access. `internal/security.Authorizer` checks principal authentication state, tool/provider scopes, a per-principal risk ceiling and optional provider-resource allowlists. The GitHub resource resolver enforces case-insensitive `owner/repo` scope. A non-nil resource map fails closed for providers without a matching scope or supported resolver. The MCP bridge accepts an authorization callback so a transport layer can evaluate trusted request context immediately before execution.
 
-`internal/security.NewBearerMiddleware` composes the official Go SDK bearer-token verifier middleware with a server-side principal resolver, validates that the resolved principal matches the verified token user ID, and attaches it to the HTTP request context. The production runtime does not yet configure a token verifier/resolver or install this middleware. It invokes the principal authorizer for every catalog tool. Stdio and loopback HTTP requests receive an explicit unauthenticated local principal with a read-only risk ceiling; this is a local trust boundary, not remote authentication. A tenant ID is validated as identity metadata, not itself used as an authorization boundary. Tenant isolation depends on a trusted principal resolver assigning the correct provider-resource allowlists; the current GitHub scope mechanism is a foundation, not a complete multi-tenant identity or membership system. Only read-only GitHub operations are currently registered.
+The runtime wraps GitHub execution with the bounded runner. It applies concurrency limits and per-operation deadlines; the provider client also has its own request timeout. The runner retries only when trusted server-side operation metadata explicitly marks an operation idempotent and a trusted error classifier approves the error. No production GitHub operation currently opts into retries.
 
-The new `internal/execution` runner is a standalone reusable primitive. It acquires a bounded concurrency slot with caller cancellation, creates a per-operation deadline, records attempt count/duration, and retries only when trusted server-side metadata marks an operation idempotent and a trusted error classifier approves the failure. The runner caps retry budgets and never retries non-idempotent operations. Provider functions must honor the supplied context for deadlines to stop work; Go cannot forcibly terminate a function that ignores cancellation. The runner is not yet connected to the MCP executor, so current GitHub execution still relies on the GitHub client's own request timeout and context handling.
+An execution observer records `denied`, `failed`, `succeeded` and invalid-request outcomes. The runtime connects it to the durable local audit store by default and exposes newest-first metadata-only events through the dashboard API. The audit log is append-only JSONL with SHA-256 hash chaining and startup verification. Hash chaining detects modification within the existing chain, but cannot prevent a privileged attacker from rewriting the complete file and recomputing its hashes. The executable uses `MCP_AUDIT_PATH` (default `./data/audit.jsonl`).
+
+`internal/security.NewBearerMiddleware` composes the official Go SDK bearer-token verifier middleware with a server-side principal resolver, validates that the resolved principal matches the verified token user ID, and attaches it to the HTTP request context. The production runtime does not yet configure a token verifier/resolver or install this middleware. Stdio and loopback HTTP requests receive an explicit unauthenticated local principal with a read-only risk ceiling; this is a local trust boundary, not remote authentication. A tenant ID is validated as identity metadata, not itself used as an authorization boundary. Tenant isolation depends on a trusted principal resolver assigning the correct provider-resource allowlists; this is a foundation, not a complete multi-tenant identity or membership system. Only read-only GitHub operations are currently registered.
+
+### Approval journal
+
+The approvals package supports an optional append-only JSONL journal through `approvals.NewFileStore(path, capacity)`. Create, decision, expiry and consumption transitions are synchronously appended and fsynced before the new state is published in memory. Startup verifies sequence numbers, previous-record links, SHA-256 record hashes, request metadata and allowed state transitions; malformed or tampered history fails closed. Journal directories are created with restrictive permissions and the file is set to mode `0600`. Records contain only the SHA-256 digest of tool arguments, never raw arguments or credentials. A failed append poisons the store and prevents further state transitions.
+
+This is local-file durability, not protection against a privileged attacker who can rewrite the complete journal and recompute its hash chain. The approval store is currently an isolated package capability: it is not configured in the production runtime, exposed through the dashboard or connected to write-tool execution.
 
 ## Intended component boundaries
 
 - `internal/protocol`: protocol-facing composition and capability policy.
 - `internal/platform`: registries, discovery and execution lifecycle.
 - `internal/integrations`: provider adapters and connector contracts.
-- `internal/security`: authentication, credentials, authorization, approvals and audit.
+- `internal/security`: authentication, credentials and authorization.
 - `internal/workflows`: durable multi-step execution.
 - `internal/observability`: structured logs, metrics and traces.
-- `ui`: independently built TypeScript/React operator interface, introduced after the API contracts stabilize.
 
 Do not create empty packages merely to match this target tree. Add packages when a real implementation needs the boundary.
 
@@ -65,46 +74,28 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 1. Never log access tokens, refresh tokens, client secrets or private keys.
 2. Do not expose unauthenticated HTTP beyond loopback.
 3. Treat provider content and repository text as untrusted input.
-4. Enforce user/tenant scope at every provider operation.
+4. Enforce user/tenant scope at every provider operation before enabling remote multi-user access.
 5. Require explicit policy approval for sensitive and destructive writes.
 6. Bound request sizes, execution time, concurrency and retries.
-7. Preserve audit evidence for tool execution decisions and authorized write operations. The executable uses `MCP_AUDIT_PATH` (default `./data/audit.jsonl`) for durable local records. Hash chaining is tamper-evident but not externally anchored.
+7. Preserve audit evidence for tool execution decisions and authorized write operations. The audit journal is locally durable and tamper-evident, but not externally anchored.
 8. Do not claim a capability is supported until it is implemented and tested.
 
 ## Current limitations
 
 - GitHub integration is read-only and currently supports seven repository operations.
-- No provider write operations, configured OAuth/token issuer, centralized secret provider, or end-to-end tenant authorization/approval engine exists. Approval storage is an isolated in-memory foundation; only principals explicitly granted `CanApprove` may decide requests, but the approval store is not yet durable or wired into tool execution. The bearer middleware adapter requires a host-supplied verifier and principal resolver and is not wired into the production request path. The principal tenant ID is metadata until provider/resource-level tenant isolation is implemented.
+- No provider write operations, configured OAuth/token issuer, centralized secret provider, or end-to-end tenant authorization/approval execution flow exists.
+- The bearer middleware adapter requires a host-supplied verifier and principal resolver and is not wired into the production request path.
 - The connector lifecycle contract and registry exist, but dynamic runtime installation and management are not implemented.
 - HTTP mode is local-only and stateless.
 - No multi-user tenancy, persistent workflow engine, or externally anchored/tamper-resistant audit backend exists.
-- The dashboard is an embedded operator console with a registry-backed tool catalog, connector inventory and audit log; it is not yet the final React/TypeScript management application.
-- The bounded execution runner is integrated into GitHub provider execution, but retry classifications, per-tool tuning and load benchmarks remain future work.
-- CI runs formatting, `go vet` and unit tests; protocol conformance, E2E, security and performance suites are future work.
+- The React dashboard provides runtime status, connector inventory, tool discovery, health checks and audit visibility; connector configuration, session/workflow/approval management and security administration remain future work.
+- The execution runner is integrated into GitHub provider execution, but automatic retries are not enabled for current operations and load benchmarks have not yet been measured.
+- CI runs formatting, `go vet` and unit tests. Protocol conformance, end-to-end, security and performance suites remain future work.
 
 ## Next milestones
 
-1. Add trusted per-tool idempotency/retry classifications, then benchmark and tune the bounded executor.
-2. Complete production authentication and tenant scope provisioning, add approval policies and durable external audit storage before any write operations or remote HTTP exposure.
-3. Stabilize dashboard API contracts and build the React/TypeScript operator UI.
-4. Add durable workflow orchestration.
-5. Add further providers, compatibility testing, security testing and performance benchmarks.
-
-
-### Persistent approval journal
-
-The approvals package supports an optional append-only JSONL journal through
-`approvals.NewFileStore(path, capacity)`. Each create, decision, expiry, and
-consumption transition is synchronously appended and fsynced before the new
-state is published in memory. Startup verifies monotonically increasing
-sequence numbers, previous-record links, SHA-256 record hashes, request
-metadata, and allowed state transitions; malformed or tampered history fails
-closed. Journal directories are created with restrictive permissions and the
-file is set to mode `0600`. Records contain only the SHA-256 digest of tool
-arguments, never raw arguments or credentials.
-
-This is local-file durability, not protection against a privileged attacker
-who can rewrite the complete journal and recompute its hash chain. It is not
-yet configured in the production runtime or connected to write-tool execution.
-A failed append poisons the store and prevents further state transitions rather
-than allowing memory and disk state to diverge.
+1. Build a durable workflow engine with explicit state transitions, bounded steps and resumable execution.
+2. Complete production authentication and tenant scope provisioning, then connect approval policy to write execution before adding any write tools or remote HTTP exposure.
+3. Extend dashboard APIs and UI for secure workflow and approval operations.
+4. Add further provider connectors behind the provider-neutral contracts.
+5. Expand protocol compatibility, security, reliability and measured performance testing.

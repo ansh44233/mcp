@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ansh44233/mcp/internal/audit"
+	"github.com/ansh44233/mcp/internal/workflows"
 )
 
 func testConfig() Config {
@@ -195,5 +196,35 @@ func TestMissingStaticBuildFallsBackToEmbeddedDashboard(t *testing.T) {
 	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Universal MCP") {
 		t.Fatalf("missing build should use embedded fallback: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+
+func TestWorkflowHealthEndpoint(t *testing.T) {
+	config := testConfig()
+	config.WorkflowHealth = func() workflows.Health {
+		return workflows.Health{Persistent: true, Healthy: true, Workflows: 3, Sequence: 9}
+	}
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got workflows.Health
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode workflow health: %v", err)
+	}
+	if !got.Persistent || !got.Healthy || got.Workflows != 3 || got.Sequence != 9 {
+		t.Fatalf("unexpected workflow health: %+v", got)
+	}
+}
+
+func TestWorkflowHealthEndpointWithoutStore(t *testing.T) {
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(testConfig()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "`healthy`:false") {
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "`healthy`:false") {
+			t.Fatalf("unexpected unconfigured workflow health: status=%d body=%s", rec.Code, rec.Body.String())
+		}
 	}
 }

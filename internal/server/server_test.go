@@ -8,7 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ansh44233/mcp/internal/security"
+	"github.com/ansh44233/mcp/internal/tools"
+	"github.com/ansh44233/mcp/internal/workflows"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"path/filepath"
 )
 
 func TestPlatformStatusToolIsRegisteredAndCallable(t *testing.T) {
@@ -129,5 +133,35 @@ func TestRuntimeCloseShutsDownManagedConnectors(t *testing.T) {
 	}
 	if err := runtime.Close(ctx); err != nil {
 		t.Fatalf("close runtime twice: %v", err)
+	}
+}
+
+
+func TestRuntimeOwnsOptionalDurableWorkflowStore(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflows.jsonl")
+	runtime := NewRuntimeWithStores("", "", path)
+	if runtime.workflows == nil {
+		t.Fatal("configured workflow store was not initialized")
+	}
+	ctx := security.WithPrincipal(context.Background(), security.Principal{
+		ID: "alice", TenantID: "tenant-a", Authenticated: true,
+		Authentication: "test", MaxRisk: tools.RiskRead,
+	})
+	item, err := runtime.workflows.Create(ctx, "runtime lifecycle", []string{"github_repository_get"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.Close(context.Background()); err != nil {
+		t.Fatalf("close runtime: %v", err)
+	}
+
+	recovered, err := workflows.NewFileStore(path, 1000)
+	if err != nil {
+		t.Fatalf("reopen workflow journal: %v", err)
+	}
+	defer recovered.Close()
+	got, err := recovered.Get(ctx, item.ID)
+	if err != nil || got.ID != item.ID || got.Status != workflows.Pending {
+		t.Fatalf("workflow did not survive runtime shutdown: %+v %v", got, err)
 	}
 }

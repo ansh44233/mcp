@@ -59,3 +59,21 @@ func TestBoundedExecutorEnforcesDeadline(t *testing.T) {
 		t.Fatalf("error = %v, want deadline exceeded", err)
 	}
 }
+
+func TestGitHubToolExecutionTimeoutsAreTrustedAndBounded(t *testing.T) {
+	cases := map[string]time.Duration{
+		"github_repository_get":      8 * time.Second,
+		"github_branches_list":       12 * time.Second,
+		"github_commits_list":        12 * time.Second,
+		"github_issues_list":         12 * time.Second,
+		"github_pull_requests_list":  12 * time.Second,
+		"github_file_get":            10 * time.Second,
+		"github_tree_get":            20 * time.Second,
+		"unknown_tool":               0,
+	}
+	for id, want := range cases {
+		if got := toolExecutionTimeout(id); got != want {
+			t.Errorf("toolExecutionTimeout(%q) = %v, want %v", id, got, want)
+		}
+	}
+}

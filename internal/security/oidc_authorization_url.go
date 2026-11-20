@@ -1,6 +1,8 @@
 package security
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"

@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"net/http"
+	"net/http/httptest"
 )
 
 func TestOAuthTransactionCreatesPKCES256AndConsumesOnce(t *testing.T) {
@@ -100,5 +102,51 @@ func TestOAuthTransactionConsumeIsAtomicUnderConcurrency(t *testing.T) {
 	wg.Wait()
 	if got := successes.Load(); got != 1 {
 		t.Fatalf("expected exactly one successful state consumption, got %d", got)
+	}
+}
+
+func TestOAuthStateCookieBindsCallbackToInitiatingBrowser(t *testing.T) {
+	store, err := NewOAuthTransactionStore(1, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transaction, err := store.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	recorder := httptest.NewRecorder()
+	SetOAuthStateCookie(recorder, transaction, true, now)
+	response := recorder.Result()
+	cookies := response.Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected one state cookie, got %d", len(cookies))
+	}
+	cookie := cookies[0]
+	if cookie.Name != oauthStateCookieName || !cookie.HttpOnly || !cookie.Secure ||
+		cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" {
+		t.Fatalf("state cookie has unsafe attributes: %#v", cookie)
+	}
+
+	callback := httptest.NewRequest(http.MethodGet, "/oauth/callback?state="+transaction.State, nil)
+	callback.AddCookie(cookie)
+	if err := ValidateOAuthStateCookie(callback, transaction.State); err != nil {
+		t.Fatalf("valid initiating browser rejected: %v", err)
+	}
+	if err := ValidateOAuthStateCookie(callback, transaction.State+"x"); err == nil {
+		t.Fatal("callback accepted a different state")
+	}
+	otherBrowser := httptest.NewRequest(http.MethodGet, "/oauth/callback?state="+transaction.State, nil)
+	if err := ValidateOAuthStateCookie(otherBrowser, transaction.State); err == nil {
+		t.Fatal("callback accepted missing browser-binding cookie")
+	}
+}
+
+func TestClearOAuthStateCookieExpiresCookie(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	ClearOAuthStateCookie(recorder, true)
+	cookies := recorder.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != oauthStateCookieName || cookies[0].MaxAge >= 0 || !cookies[0].Secure {
+		t.Fatalf("state cookie was not safely expired: %#v", cookies)
 	}
 }

@@ -187,3 +187,13 @@ func TestBuiltDashboardStaticAssetsAndSPAFallback(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingStaticBuildFallsBackToEmbeddedDashboard(t *testing.T) {
+	config := testConfig()
+	config.StaticDir = filepath.Join(t.TempDir(), "missing-dist")
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Universal MCP") {
+		t.Fatalf("missing build should use embedded fallback: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}

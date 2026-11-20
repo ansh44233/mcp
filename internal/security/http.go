@@ -14,7 +14,7 @@ import (
 type PrincipalResolver func(context.Context, *auth.TokenInfo) (Principal, error)
 
 // NewBearerMiddleware composes the SDK's bearer-token verifier with the
-// platform principal model. The verifier is responsible for cryptographic token
+// platform principal model. The verifier is responsible for token
 // validation; the resolver is responsible for mapping verified identity to a
 // tenant and least-privilege scopes.
 func NewBearerMiddleware(

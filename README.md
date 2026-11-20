@@ -24,7 +24,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Provider-neutral tool catalog with stable IDs, provider metadata, risk classification and JSON input-schema validation.
 - Catalog-to-MCP bridge: registered definitions are discoverable and invokable through the official SDK.
 - Execution-time risk policy: the default runtime permits read tools only, supports an explicit tool allowlist and rejects write/destructive or unknown-risk tools before the executor runs.
-- Initial authorization primitives: typed request principals, defensive context propagation, fail-closed principal validation, tool/provider scopes, per-principal risk ceilings and optional provider-resource allowlists (GitHub owner/repository); the MCP bridge enforces resource authorization against schema-validated arguments before execution.
+- Initial authorization primitives: typed request principals, defensive context propagation, fail-closed principal validation, tool/provider scopes, per-principal risk ceilings and provider-resource allowlists (GitHub owner/repository); authenticated principals without an explicit resource-scope map are denied by default, and the MCP bridge enforces resource authorization against schema-validated arguments before execution.
 - Bearer middleware adapter: composes the official MCP Go SDK token-verification middleware with a server-side principal resolver. The host must supply a real token verifier and trusted user-to-tenant/scope resolver; the production runtime does not configure either yet.
 - Initial GitHub read-only connector using the GitHub REST API:
   - Repository metadata

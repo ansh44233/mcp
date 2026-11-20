@@ -2,6 +2,8 @@ package dashboard
 
 import (
 	"context"
+
+	"github.com/ansh44233/mcp/internal/audit"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -132,5 +134,18 @@ func TestConnectorHealthCheckEndpoint(t *testing.T) {
 		if test.wantBody != "" && !strings.Contains(rec.Body.String(), test.wantBody) {
 			t.Errorf("%s: body %q does not contain %q", test.id, rec.Body.String(), test.wantBody)
 		}
+	}
+}
+
+func TestAuditEventsEndpoint(t *testing.T) {
+	config := testConfig()
+	config.AuditEvents = func(limit int) []audit.Event {
+		if limit != 2 { t.Errorf("limit = %d, want 2", limit) }
+		return []audit.Event{{Sequence: 7, ToolID: "github_repository_get", Outcome: "succeeded"}}
+	}
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/audit?limit=2", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"sequence":7`) {
+		t.Fatalf("unexpected audit response: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }

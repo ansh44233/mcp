@@ -13,9 +13,9 @@ import (
 
 	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/audit"
-	"github.com/ansh44233/mcp/internal/workflows"
 	"github.com/ansh44233/mcp/internal/security"
 	"github.com/ansh44233/mcp/internal/tools"
+	"github.com/ansh44233/mcp/internal/workflows"
 )
 
 func testConfig() Config {
@@ -193,7 +193,7 @@ func TestApprovalDashboardAPIEnforcesRequesterAndReviewerScopes(t *testing.T) {
 	handler.ServeHTTP(ownerRec, ownerReq)
 	var ownerResult struct {
 		Requests []approvals.Request `json:"requests"`
-		Count int `json:"count"`
+		Count    int                 `json:"count"`
 	}
 	if err := json.Unmarshal(ownerRec.Body.Bytes(), &ownerResult); err != nil {
 		t.Fatal(err)

@@ -139,3 +139,29 @@ func TestExecuteValidatesInputs(t *testing.T) {
 		t.Fatal("expected missing operation ID error")
 	}
 }
+
+func TestExecuteUsesShorterTrustedOperationTimeout(t *testing.T) {
+	runner := New(Config{MaxConcurrent: 1, Timeout: time.Second})
+	started := time.Now()
+	_, err := runner.Execute(context.Background(), Operation{ID: "short", Timeout: 20 * time.Millisecond}, func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > 300*time.Millisecond {
+		t.Fatalf("operation timeout took %v, expected approximately 20ms", elapsed)
+	}
+}
+
+func TestExecuteOperationTimeoutCannotExceedRunnerMaximum(t *testing.T) {
+	runner := New(Config{MaxConcurrent: 1, Timeout: 20 * time.Millisecond})
+	_, err := runner.Execute(context.Background(), Operation{ID: "capped", Timeout: time.Second}, func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want runner maximum deadline", err)
+	}
+}

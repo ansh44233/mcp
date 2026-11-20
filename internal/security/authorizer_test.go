@@ -90,3 +90,29 @@ func TestPrincipalValidation(t *testing.T) {
 		t.Fatalf("expected missing authentication method error, got %v", err)
 	}
 }
+
+
+func TestLocalPrincipalIsExplicitlyReadOnly(t *testing.T) {
+	principal := LocalPrincipal()
+	if principal.ID != "local" || principal.TenantID != "local" || principal.Authenticated {
+		t.Fatalf("unexpected local identity: %#v", principal)
+	}
+	if principal.MaxRisk != tools.RiskRead {
+		t.Fatalf("local principal max risk = %q, want read", principal.MaxRisk)
+	}
+	if err := principal.Validate(); err != nil {
+		t.Fatalf("local principal should validate: %v", err)
+	}
+	if err := (Authorizer{AllowLocalPrincipal: true}).Authorize(
+		WithPrincipal(context.Background(), principal),
+		tools.Definition{ID: "repo_read", Provider: "github", Risk: tools.RiskRead},
+	); err != nil {
+		t.Fatalf("local read should be allowed: %v", err)
+	}
+	if err := (Authorizer{AllowLocalPrincipal: true}).Authorize(
+		WithPrincipal(context.Background(), principal),
+		tools.Definition{ID: "repo_write", Provider: "github", Risk: tools.RiskWrite},
+	); err == nil {
+		t.Fatal("local principal must not authorize write tools")
+	}
+}

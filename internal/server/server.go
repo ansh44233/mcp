@@ -335,15 +335,15 @@ func (r *Runtime) DashboardHandlerWithStaticDir(staticDir string) http.Handler {
 		})
 	}
 	return dashboard.HandlerWithConfig(dashboard.Config{
-		Version:               Version,
-		Transports:            []string{"stdio", "streamable-http"},
-		Tools:                 toolInfos,
-		Connectors:            connectors,
-		HealthChecks:          healthChecks,
-		AuditEvents:           func(limit int) []audit.Event { return r.audit.List(limit) },
-		AuditEventsForTenant:  func(tenantID string, limit int) []audit.Event { return r.audit.ListForTenant(tenantID, limit) },
-		RequirePrincipal:      true,
-		AuditHealth:           func() audit.Health { return r.audit.Health() },
+		Version:              Version,
+		Transports:           []string{"stdio", "streamable-http"},
+		Tools:                toolInfos,
+		Connectors:           connectors,
+		HealthChecks:         healthChecks,
+		AuditEvents:          func(limit int) []audit.Event { return r.audit.List(limit) },
+		AuditEventsForTenant: func(tenantID string, limit int) []audit.Event { return r.audit.ListForTenant(tenantID, limit) },
+		RequirePrincipal:     true,
+		AuditHealth:          func() audit.Health { return r.audit.Health() },
 		WorkflowHealth: func() workflows.Health {
 			if r.workflows == nil {
 				return workflows.Health{}

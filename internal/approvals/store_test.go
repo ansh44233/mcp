@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -178,5 +181,97 @@ func TestListIsTenantScopedNewestFirstAndExpiresPending(t *testing.T) {
 	}
 	if _, err := store.List(context.Background(), 10); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("missing principal should be rejected: %v", err)
+	}
+}
+
+func TestFileStoreRecoversApprovalTransitions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "approvals.jsonl")
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := json.RawMessage(`{"owner":"acme","repo":"demo"}`)
+	request, err := store.Create(principal("alice", "tenant-a", true), writeTool(), args, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Decide(approver("bob", "tenant-a"), request.ID, true, "reviewed"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Consume(principal("alice", "tenant-a", true), request.ID, writeTool(), args); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recovered.Close()
+	got, err := recovered.Get(principal("alice", "tenant-a", true), request.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != Consumed || got.ApproverID != "bob" || got.Reason != "reviewed" {
+		t.Fatalf("unexpected recovered request: %+v", got)
+	}
+	health := recovered.Health()
+	if !health.Persistent || !health.Healthy || health.Sequence != 3 {
+		t.Fatalf("unexpected journal health: %+v", health)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "acme") || strings.Contains(string(data), "demo") {
+		t.Fatal("journal must not contain raw tool arguments")
+	}
+}
+
+func TestFileStoreRejectsTamperedJournal(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "approvals.jsonl")
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{"x":1}`), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = []byte(strings.Replace(string(data), "alice", "mallory", 1))
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewFileStore(path, 10); err == nil {
+		t.Fatal("tampered journal should fail verification")
+	}
+}
+
+func TestFileStoreDoesNotPublishTransitionAfterAppendFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "approvals.jsonl")
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{}`), time.Hour)
+	if err == nil {
+		t.Fatal("write to closed journal should fail")
+	}
+	if got := store.Health(); got.Healthy {
+		t.Fatal("journal should report unhealthy after append failure")
+	}
+	if len(store.requests) != 0 {
+		t.Fatal("failed transition must not be published in memory")
 	}
 }

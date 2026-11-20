@@ -114,11 +114,11 @@ func TestStaticPrincipalResolverRejectsAmbiguousScopes(t *testing.T) {
 		AllowedResources: map[string][]string{"github": {"Acme/Demo"}},
 	}
 	tests := map[string]func(*PrincipalGrant){
-		"duplicate tool": func(g *PrincipalGrant) { g.AllowedTools = []string{"github_repository_get", "github_repository_get"} },
-		"whitespace tool": func(g *PrincipalGrant) { g.AllowedTools = []string{" github_repository_get"} },
-		"duplicate resource": func(g *PrincipalGrant) { g.AllowedResources["github"] = []string{"acme/demo", "acme/demo"} },
+		"duplicate tool":            func(g *PrincipalGrant) { g.AllowedTools = []string{"github_repository_get", "github_repository_get"} },
+		"whitespace tool":           func(g *PrincipalGrant) { g.AllowedTools = []string{" github_repository_get"} },
+		"duplicate resource":        func(g *PrincipalGrant) { g.AllowedResources["github"] = []string{"acme/demo", "acme/demo"} },
 		"resource without provider": func(g *PrincipalGrant) { g.AllowedProviders = []string{"gitlab"} },
-		"whitespace resource": func(g *PrincipalGrant) { g.AllowedResources["github"] = []string{"acme/demo "} },
+		"whitespace resource":       func(g *PrincipalGrant) { g.AllowedResources["github"] = []string{"acme/demo "} },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {

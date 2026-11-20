@@ -20,7 +20,7 @@ func RegisterMCP(server *mcp.Server, registry *Registry, execute Executor) error
 
 // AuthorizeFunc evaluates a tool against trusted request context. Implementations
 // must derive identity from server-side authentication, never tool arguments.
-type AuthorizeFunc func(context.Context, Definition) error
+type AuthorizeFunc func(context.Context, Definition, json.RawMessage) error
 
 // RegisterMCPWithPolicy publishes catalog tools with an execution-time policy.
 func RegisterMCPWithPolicy(server *mcp.Server, registry *Registry, execute Executor, policy Policy) error {
@@ -56,7 +56,7 @@ func RegisterMCPWithAuthorization(server *mcp.Server, registry *Registry, execut
 				return nil, nil, fmt.Errorf("authorize %q: %w", definition.ID, err)
 			}
 			if authorize != nil {
-				if err := authorize(ctx, definition); err != nil {
+				if err := authorize(ctx, definition, append(json.RawMessage(nil), arguments...)); err != nil {
 					return nil, nil, fmt.Errorf("authorize principal for %q: %w", definition.ID, err)
 				}
 			}

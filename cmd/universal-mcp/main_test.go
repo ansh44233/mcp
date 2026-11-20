@@ -13,6 +13,60 @@ import (
 	"github.com/ansh44233/mcp/internal/security"
 )
 
+
+func TestMountDashboardProtectsAPIRoutesWhenBearerAuthIsConfigured(t *testing.T) {
+	dashboard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux := http.NewServeMux()
+	middleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer verified" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	mountDashboard(mux, dashboard, middleware)
+
+	api := httptest.NewRecorder()
+	mux.ServeHTTP(api, httptest.NewRequest(http.MethodGet, "/api/v1/status", nil))
+	if api.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated dashboard API returned %d, want 401", api.Code)
+	}
+
+	authenticatedRequest := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	authenticatedRequest.Header.Set("Authorization", "Bearer verified")
+	authenticated := httptest.NewRecorder()
+	mux.ServeHTTP(authenticated, authenticatedRequest)
+	if authenticated.Code != http.StatusNoContent {
+		t.Fatalf("authenticated dashboard API returned %d, want 204", authenticated.Code)
+	}
+
+	// Static UI delivery is separate from API authorization; it contains no
+	// privileged data and can load before the operator obtains an access token.
+	ui := httptest.NewRecorder()
+	mux.ServeHTTP(ui, httptest.NewRequest(http.MethodGet, "/", nil))
+	if ui.Code != http.StatusNoContent {
+		t.Fatalf("dashboard root returned %d, want 204", ui.Code)
+	}
+}
+
+func TestMountDashboardKeepsLocalLoopbackAPIsAvailableWithoutOIDC(t *testing.T) {
+	dashboard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux := http.NewServeMux()
+	mountDashboard(mux, dashboard, nil)
+
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/status", nil))
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("local dashboard API returned %d, want 204", response.Code)
+	}
+}
+
 func TestIsLoopbackAddress(t *testing.T) {
 	tests := []struct {
 		address string

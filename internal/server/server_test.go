@@ -18,7 +18,7 @@ import (
 )
 
 func TestPlatformStatusToolIsRegisteredAndCallable(t *testing.T) {
-	ctx := context.Background()
+	ctx := security.WithPrincipal(context.Background(), security.LocalPrincipal())
 	runtime := NewRuntime("")
 	defer runtime.Close(context.Background())
 	server := runtime.Server
@@ -51,7 +51,7 @@ func TestPlatformStatusToolIsRegisteredAndCallable(t *testing.T) {
 		t.Fatal("platform_status did not return structured content")
 	}
 	auditResponse := httptest.NewRecorder()
-	runtime.DashboardHandler().ServeHTTP(auditResponse, httptest.NewRequest(http.MethodGet, "/api/v1/audit", nil))
+	runtime.DashboardHandler().ServeHTTP(auditResponse, localDashboardRequest(http.MethodGet, "/api/v1/audit"))
 	if auditResponse.Code != http.StatusOK || !strings.Contains(auditResponse.Body.String(), "platform_status") {
 		t.Fatalf("platform_status call was not audited: %s", auditResponse.Body.String())
 	}
@@ -104,7 +104,7 @@ func TestDashboardUsesRegisteredMCPDefinitions(t *testing.T) {
 	runtime := NewRuntime("")
 	handler := runtime.DashboardHandler()
 	toolsResponse := httptest.NewRecorder()
-	handler.ServeHTTP(toolsResponse, httptest.NewRequest(http.MethodGet, "/api/v1/tools", nil))
+	handler.ServeHTTP(toolsResponse, localDashboardRequest(http.MethodGet, "/api/v1/tools"))
 	if toolsResponse.Code != http.StatusOK {
 		t.Fatalf("tools endpoint status = %d", toolsResponse.Code)
 	}
@@ -117,7 +117,7 @@ func TestDashboardUsesRegisteredMCPDefinitions(t *testing.T) {
 	}
 
 	connectorResponse := httptest.NewRecorder()
-	handler.ServeHTTP(connectorResponse, httptest.NewRequest(http.MethodGet, "/api/v1/connectors", nil))
+	handler.ServeHTTP(connectorResponse, localDashboardRequest(http.MethodGet, "/api/v1/connectors"))
 	if connectorResponse.Code != http.StatusOK || !strings.Contains(connectorResponse.Body.String(), "github") {
 		t.Fatalf("unexpected connector inventory response: %s", connectorResponse.Body.String())
 	}
@@ -153,7 +153,7 @@ func TestRuntimeOwnsOptionalDurableWorkflowStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	healthResponse := httptest.NewRecorder()
-	runtime.DashboardHandler().ServeHTTP(healthResponse, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
+	runtime.DashboardHandler().ServeHTTP(healthResponse, localDashboardRequest(http.MethodGet, "/api/v1/workflows/health"))
 	if healthResponse.Code != http.StatusOK || !strings.Contains(healthResponse.Body.String(), `"persistent":true`) || !strings.Contains(healthResponse.Body.String(), `"workflows":1`) {
 		t.Fatalf("workflow health endpoint did not reflect runtime store: status=%d body=%s", healthResponse.Code, healthResponse.Body.String())
 	}
@@ -189,7 +189,7 @@ func TestRuntimeOwnsOptionalDurableApprovalStore(t *testing.T) {
 		t.Fatalf("create approval request: %v", err)
 	}
 	healthResponse := httptest.NewRecorder()
-	runtime.DashboardHandler().ServeHTTP(healthResponse, httptest.NewRequest(http.MethodGet, "/api/v1/approvals/health", nil))
+	runtime.DashboardHandler().ServeHTTP(healthResponse, localDashboardRequest(http.MethodGet, "/api/v1/approvals/health"))
 	if healthResponse.Code != http.StatusOK ||
 		!strings.Contains(healthResponse.Body.String(), `"persistent":true`) ||
 		!strings.Contains(healthResponse.Body.String(), `"requests":1`) {
@@ -207,4 +207,9 @@ func TestRuntimeOwnsOptionalDurableApprovalStore(t *testing.T) {
 	if health.Requests != 1 || health.Sequence != 1 || !health.Persistent || !health.Healthy {
 		t.Fatalf("approval request did not survive runtime shutdown: %+v", health)
 	}
+}
+
+func localDashboardRequest(method, path string) *http.Request {
+	ctx := security.WithPrincipal(context.Background(), security.LocalPrincipal())
+	return httptest.NewRequest(method, path, nil).WithContext(ctx)
 }

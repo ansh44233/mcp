@@ -179,16 +179,58 @@ func validateWorkflow(item Workflow) error {
 func validWorkflowUpdate(old, next Workflow) bool {
 	if old.ID != next.ID || old.TenantID != next.TenantID || old.OwnerID != next.OwnerID ||
 		old.Name != next.Name || !old.CreatedAt.Equal(next.CreatedAt) ||
-		len(old.Steps) != len(next.Steps) {
+		next.UpdatedAt.Before(old.UpdatedAt) || len(old.Steps) != len(next.Steps) {
 		return false
 	}
+	switch old.Status {
+	case Pending:
+		if next.Status != Running && next.Status != Cancelled {
+			return false
+		}
+	case Running:
+		if next.Status != Pending && next.Status != Succeeded && next.Status != Failed && next.Status != Cancelled {
+			return false
+		}
+	case Failed:
+		if next.Status != Pending {
+			return false
+		}
+	default:
+		return false
+	}
+
+	changed := 0
 	for i := range old.Steps {
 		a, b := old.Steps[i], next.Steps[i]
-		if a.ID != b.ID || a.ToolID != b.ToolID || b.Attempts < a.Attempts {
+		if a.ID != b.ID || a.ToolID != b.ToolID {
+			return false
+		}
+		if a.Status == b.Status {
+			if a.Attempts != b.Attempts {
+				return false
+			}
+			continue
+		}
+		changed++
+		switch a.Status {
+		case Pending:
+			if b.Status != Running || b.Attempts != a.Attempts+1 || b.StartedAt == nil || b.CompletedAt != nil {
+				return false
+			}
+		case Running:
+			if (b.Status != Succeeded && b.Status != Failed && b.Status != Cancelled) ||
+				b.Attempts != a.Attempts || b.CompletedAt == nil {
+				return false
+			}
+		case Failed:
+			if b.Status != Pending || b.Attempts != a.Attempts || b.StartedAt != nil || b.CompletedAt != nil {
+				return false
+			}
+		default:
 			return false
 		}
 	}
-	return true
+	return changed <= 1
 }
 
 func workflowRecordHash(record journalRecord) (string, error) {

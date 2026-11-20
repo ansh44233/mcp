@@ -166,6 +166,9 @@ func (s *Store) ObserveToolCall(ctx context.Context, definition tools.Definition
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.lastError != nil {
+		return
+	}
 	event.Sequence = s.next + 1
 	event.PreviousHash = s.lastHash
 	hash, err := eventHash(event)

@@ -108,7 +108,6 @@ func run() int {
 	return 0
 }
 
-
 func newHTTPBearerMiddleware(
 	ctx context.Context,
 	lookup func(string) (string, bool),

@@ -20,7 +20,7 @@ func TestStaticPrincipalResolverUsesTrustedSubjectGrants(t *testing.T) {
 			AllowedTools:     []string{"github_repository_get", "platform_status"},
 			AllowedProviders: []string{"github", "platform"},
 			AllowedResources: map[string][]string{
-				"github":  {"acme/demo"},
+				"github":   {"acme/demo"},
 				"platform": {"platform"},
 			},
 		},
@@ -78,7 +78,7 @@ func TestStaticPrincipalResolverRequiresExplicitLeastPrivilegeScopes(t *testing.
 		},
 		"missing providers": {
 			TenantID: "tenant-a", MaxRisk: tools.RiskRead,
-			AllowedTools: []string{"github_repository_get"},
+			AllowedTools:     []string{"github_repository_get"},
 			AllowedResources: map[string][]string{"github": {"acme/demo"}},
 		},
 		"missing resources": {

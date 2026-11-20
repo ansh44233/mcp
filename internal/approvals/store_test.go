@@ -240,6 +240,34 @@ func TestApprovalInspectionIsOwnerOrReviewerScoped(t *testing.T) {
 	}
 }
 
+func TestReviewerInspectionHonorsRiskAndCapabilityScopes(t *testing.T) {
+	store := NewStore(10)
+	definition := writeTool()
+	request, err := store.Create(principal("requester", "tenant-a", true), definition, json.RawMessage(`{"x":1}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restricted := security.WithPrincipal(context.Background(), security.Principal{
+		ID: "reviewer", TenantID: "tenant-a", Authenticated: true, Authentication: "test",
+		CanApprove: true, MaxRisk: tools.RiskRead,
+	})
+	if _, err := store.Get(restricted, request.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("reviewer below request risk must not inspect: %v", err)
+	}
+	if requests, err := store.List(restricted, 10); err != nil || len(requests) != 0 {
+		t.Fatalf("reviewer below request risk must not list request: %+v %v", requests, err)
+	}
+	restricted = security.WithPrincipal(context.Background(), security.Principal{
+		ID: "reviewer", TenantID: "tenant-a", Authenticated: true, Authentication: "test",
+		CanApprove: true, MaxRisk: tools.RiskDestructive,
+		AllowedTools: map[string]struct{}{"different_tool": {}},
+		AllowedProviders: map[string]struct{}{"github": {}},
+	})
+	if _, err := store.Get(restricted, request.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("reviewer outside tool scope must not inspect: %v", err)
+	}
+}
+
 func TestFileStoreRecoversApprovalTransitions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "approvals.jsonl")
 	store, err := NewFileStore(path, 10)

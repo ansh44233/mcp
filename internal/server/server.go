@@ -120,6 +120,22 @@ func githubToolDefinitions() []platformtools.Definition {
 			Risk:        platformtools.RiskRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + commonSchema + `,"state":{"type":"string","enum":["open","closed","all"]},` + paginationSchema + `},"required":["owner","repo"],"additionalProperties":false}`),
 		},
+		{
+			ID:          "github_file_get",
+			Provider:    "github",
+			Name:        "file_get",
+			Description: "Read a text file from a GitHub repository. Read-only; files are limited to 1 MiB.",
+			Risk:        platformtools.RiskRead,
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"owner":{"type":"string","minLength":1},"repo":{"type":"string","minLength":1},"path":{"type":"string","minLength":1},"ref":{"type":"string"}},"required":["owner","repo","path"],"additionalProperties":false}`),
+		},
+		{
+			ID:          "github_tree_get",
+			Provider:    "github",
+			Name:        "tree_get",
+			Description: "List a repository Git tree recursively for a branch, tag or commit. Check the truncated field for very large trees.",
+			Risk:        platformtools.RiskRead,
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"owner":{"type":"string","minLength":1},"repo":{"type":"string","minLength":1},"ref":{"type":"string","minLength":1}},"required":["owner","repo","ref"],"additionalProperties":false}`),
+		},
 	}
 }
 
@@ -131,6 +147,8 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 			State   string `json:"state"`
 			Page    int    `json:"page"`
 			PerPage int    `json:"per_page"`
+			Path    string `json:"path"`
+			Ref     string `json:"ref"`
 		}
 		if err := json.Unmarshal(raw, &input); err != nil {
 			return nil, fmt.Errorf("decode GitHub tool arguments: %w", err)
@@ -152,6 +170,10 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 			return client.Issues(ctx, input.Owner, input.Repo, input.State, input.Page, input.PerPage)
 		case "pull_requests_list":
 			return client.PullRequests(ctx, input.Owner, input.Repo, input.State, input.Page, input.PerPage)
+		case "file_get":
+			return client.Contents(ctx, input.Owner, input.Repo, input.Path, input.Ref)
+		case "tree_get":
+			return client.Tree(ctx, input.Owner, input.Repo, input.Ref)
 		default:
 			return nil, fmt.Errorf("unsupported GitHub operation %q", definition.Name)
 		}

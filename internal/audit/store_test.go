@@ -42,6 +42,33 @@ func TestStoreCapturesPrincipalWithoutRequestPayload(t *testing.T) {
 	}
 }
 
+func TestStoreListForTenantDoesNotLeakAcrossTenants(t *testing.T) {
+	store := NewStore(10)
+	definition := tools.Definition{ID: "repo_read", Provider: "github", Risk: tools.RiskRead}
+	for _, tenant := range []string{"tenant-a", "tenant-b", "tenant-a"} {
+		ctx := security.WithPrincipal(context.Background(), security.Principal{
+			ID: tenant, TenantID: tenant, Authenticated: true,
+			Authentication: "test", MaxRisk: tools.RiskRead,
+		})
+		store.ObserveToolCall(ctx, definition, "succeeded", 1)
+	}
+	events := store.ListForTenant("tenant-a", 10)
+	if len(events) != 2 {
+		t.Fatalf("tenant-a received %d events, want 2", len(events))
+	}
+	for _, event := range events {
+		if event.TenantID != "tenant-a" {
+			t.Fatalf("cross-tenant event returned: %+v", event)
+		}
+	}
+	if got := store.ListForTenant("tenant-b", 1); len(got) != 1 || got[0].TenantID != "tenant-b" {
+		t.Fatalf("unexpected tenant-b events: %+v", got)
+	}
+	if got := store.ListForTenant("", 10); len(got) != 0 {
+		t.Fatalf("empty tenant scope returned events: %+v", got)
+	}
+}
+
 func TestStoreConcurrentWritesAndReads(t *testing.T) {
 	store := NewStore(64)
 	definition := tools.Definition{ID: "repo_read", Provider: "github", Risk: tools.RiskRead}

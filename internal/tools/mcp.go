@@ -18,9 +18,18 @@ func RegisterMCP(server *mcp.Server, registry *Registry, execute Executor) error
 	return RegisterMCPWithPolicy(server, registry, execute, ReadOnlyPolicy())
 }
 
+// AuthorizeFunc evaluates a tool against trusted request context. Implementations
+// must derive identity from server-side authentication, never tool arguments.
+type AuthorizeFunc func(context.Context, Definition) error
+
 // RegisterMCPWithPolicy publishes catalog tools with an execution-time policy.
-// Authorization runs after SDK schema validation and immediately before execution.
 func RegisterMCPWithPolicy(server *mcp.Server, registry *Registry, execute Executor, policy Policy) error {
+	return RegisterMCPWithAuthorization(server, registry, execute, policy, nil)
+}
+
+// RegisterMCPWithAuthorization adds a request-context authorizer after the
+// static capability policy. The callback runs immediately before execution.
+func RegisterMCPWithAuthorization(server *mcp.Server, registry *Registry, execute Executor, policy Policy, authorize AuthorizeFunc) error {
 	if server == nil {
 		return fmt.Errorf("MCP server is required")
 	}
@@ -45,6 +54,11 @@ func RegisterMCPWithPolicy(server *mcp.Server, registry *Registry, execute Execu
 			}
 			if err := policy.Authorize(definition); err != nil {
 				return nil, nil, fmt.Errorf("authorize %q: %w", definition.ID, err)
+			}
+			if authorize != nil {
+				if err := authorize(ctx, definition); err != nil {
+					return nil, nil, fmt.Errorf("authorize principal for %q: %w", definition.ID, err)
+				}
 			}
 			output, err := execute(ctx, definition, arguments)
 			if err != nil {

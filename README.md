@@ -123,6 +123,44 @@ go vet ./...
 go test ./...
 ```
 
+### Performance benchmarks
+
+Run the catalog and execution benchmarks locally:
+
+```bash
+go test -run '^
+
+- `cmd/universal-mcp`: executable entry point.
+- `internal/server`: MCP server, built-in tools and provider tool registration.
+- `internal/tools`: provider-neutral tool metadata catalog and MCP bridge.
+- `internal/integrations`: connector lifecycle contract and registry.
+- `internal/providers/github`: read-only GitHub REST client and connector adapter.
+- `internal/dashboard`: local operator dashboard and read-only API.
+- `internal/audit`: bounded, concurrency-safe, metadata-only in-memory audit event store.
+- `docs`: architecture and operational documentation.
+- `.github/workflows`: CI automation.
+
+Implementation details stay under `internal/`. Public Go packages will be added only when we have stable APIs intended for reuse.
+
+## Security
+
+Never commit access tokens, OAuth client secrets, private keys or production credentials. GitHub access is read-only in this release. The current HTTP endpoint is local-only and unauthenticated. Remote exposure is intentionally blocked until authentication, authorization and transport security are implemented and tested.
+
+## Project commitments
+
+- All accepted development commits land directly on `main`, per the repository owner's workflow preference.
+- Commits represent meaningful, reviewable work; no artificial history inflation.
+- A feature is not called complete until tests and documentation support that claim.
+- Production readiness requires protocol, security, compatibility and operational validation.
+
+## License
+
+License selection is pending. Do not assume this project is licensed for redistribution until a license file is added.
+ -bench '^(BenchmarkRegistry|BenchmarkRunner)' -benchmem -benchtime=300ms -count=3 ./internal/tools ./internal/execution
+```
+
+GitHub Actions also runs the benchmark suite on a weekly schedule or manual dispatch and uploads `benchmark-results.txt` as a 30-day artifact. Results are measurements for the runner environment, not universal performance guarantees.
+
 ## Repository layout
 
 - `cmd/universal-mcp`: executable entry point.

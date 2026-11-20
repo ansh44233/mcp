@@ -67,7 +67,6 @@ func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
 	}
 }
 
-
 func TestAuthorizerRequiresExplicitResourceScopeForAuthenticatedPrincipal(t *testing.T) {
 	ctx := WithPrincipal(context.Background(), Principal{
 		ID: "user-1", TenantID: "tenant-a", Authenticated: true,

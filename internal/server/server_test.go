@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/security"
 	"github.com/ansh44233/mcp/internal/tools"
 	"github.com/ansh44233/mcp/internal/workflows"
@@ -167,5 +169,42 @@ func TestRuntimeOwnsOptionalDurableWorkflowStore(t *testing.T) {
 	got, err := recovered.Get(ctx, item.ID)
 	if err != nil || got.ID != item.ID || got.Status != workflows.Pending {
 		t.Fatalf("workflow did not survive runtime shutdown: %+v %v", got, err)
+	}
+}
+
+func TestRuntimeOwnsOptionalDurableApprovalStore(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "approvals.jsonl")
+	runtime := NewRuntimeWithAllStores("", "", "", path)
+	if runtime.approvals == nil {
+		t.Fatal("approval store was not initialized")
+	}
+	ctx := security.WithPrincipal(context.Background(), security.Principal{
+		ID: "alice", TenantID: "tenant-a", Authenticated: true,
+		Authentication: "test", MaxRisk: tools.RiskWrite,
+	})
+	_, err := runtime.approvals.Create(ctx, tools.Definition{
+		ID: "github_issue_create", Provider: "github", Name: "issue_create", Risk: tools.RiskWrite,
+	}, json.RawMessage(`{"owner":"acme","repo":"demo","title":"test"}`), time.Minute)
+	if err != nil {
+		t.Fatalf("create approval request: %v", err)
+	}
+	healthResponse := httptest.NewRecorder()
+	runtime.DashboardHandler().ServeHTTP(healthResponse, httptest.NewRequest(http.MethodGet, "/api/v1/approvals/health", nil))
+	if healthResponse.Code != http.StatusOK ||
+		!strings.Contains(healthResponse.Body.String(), `"persistent":true`) ||
+		!strings.Contains(healthResponse.Body.String(), `"requests":1`) {
+		t.Fatalf("approval health endpoint did not reflect runtime store: status=%d body=%s", healthResponse.Code, healthResponse.Body.String())
+	}
+	if err := runtime.Close(context.Background()); err != nil {
+		t.Fatalf("close runtime: %v", err)
+	}
+	recovered, err := approvals.NewFileStore(path, 10000)
+	if err != nil {
+		t.Fatalf("reopen approval journal: %v", err)
+	}
+	defer recovered.Close()
+	health := recovered.Health()
+	if health.Requests != 1 || health.Sequence != 1 || !health.Persistent || !health.Healthy {
+		t.Fatalf("approval request did not survive runtime shutdown: %+v", health)
 	}
 }

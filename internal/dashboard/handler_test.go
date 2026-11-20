@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -149,5 +151,39 @@ func TestAuditEventsEndpoint(t *testing.T) {
 	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/audit?limit=2", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"sequence":7`) {
 		t.Fatalf("unexpected audit response: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBuiltDashboardStaticAssetsAndSPAFallback(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.Mkdir(filepath.Join(directory, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "index.html"), []byte("<html>react-dashboard</html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "assets", "app.js"), []byte("console.log('dashboard')"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := HandlerWithConfig(Config{StaticDir: directory})
+	for _, test := range []struct {
+		path string
+		want string
+		code int
+	}{
+		{"/", "react-dashboard", http.StatusOK},
+		{"/assets/app.js", "console.log", http.StatusOK},
+		{"/connectors/github", "react-dashboard", http.StatusOK},
+		{"/assets/missing.js", "", http.StatusNotFound},
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, test.path, nil))
+		if rec.Code != test.code {
+			t.Errorf("%s: status=%d want=%d body=%s", test.path, rec.Code, test.code, rec.Body.String())
+		}
+		if test.want != "" && !strings.Contains(rec.Body.String(), test.want) {
+			t.Errorf("%s: body %q does not contain %q", test.path, rec.Body.String(), test.want)
+		}
 	}
 }

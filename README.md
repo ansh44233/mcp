@@ -38,6 +38,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Local operator dashboard served by HTTP mode.
 - Read-only `/healthz`, `/api/v1/status`, `/api/v1/tools` and `/api/v1/connectors` endpoints.
 - Dashboard tool inventory is generated from the same provider tool definitions used to publish MCP capabilities; supports text search and provider filtering.
+- Connector inventory is sourced from the connector registry and offers an explicit, bounded health-check action for registered providers.
 - Graceful HTTP shutdown and structured server logs.
 - HTTP mode restricted to loopback addresses until remote authentication and authorization are implemented.
 - GitHub Actions checks for formatting, dependency resolution, vetting and tests.
@@ -86,6 +87,7 @@ Then open:
 - Status API: http://127.0.0.1:8080/api/v1/status
 - Tool catalog API: http://127.0.0.1:8080/api/v1/tools
 - Connector inventory API: http://127.0.0.1:8080/api/v1/connectors
+- Connector health check: POST http://127.0.0.1:8080/api/v1/connectors/github/health-check
 - MCP endpoint: http://127.0.0.1:8080/mcp
 
 HTTP mode intentionally binds to loopback only. Do not expose it to a network: remote authentication, authorization and tenant isolation are not implemented yet.

@@ -67,7 +67,7 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 ## Current limitations
 
 - GitHub integration is read-only and currently supports seven repository operations.
-- No provider write operations, OAuth flow, centralized secret provider or authorization/approval engine exists.
+- No provider write operations, OAuth flow, centralized secret provider, trusted transport authentication or end-to-end tenant authorization/approval engine exists. The principal and authorization packages are foundations only and are not wired into the production request path.
 - The connector lifecycle contract and registry exist, but dynamic runtime installation and management are not implemented.
 - HTTP mode is local-only and stateless.
 - No multi-user tenancy, persistent workflow engine or remote deployment support exists.

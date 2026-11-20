@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	sessionCookieName = "__Host-universal_mcp_session"
+	sessionCookieName = "universal_mcp_session"
 	sessionIDBytes    = 32
 	csrfTokenBytes    = 32
 )
@@ -55,7 +55,7 @@ func (s *SessionStore) Create(principal Principal) (Session, error) {
 	if s == nil {
 		return Session{}, errors.New("session store is required")
 	}
-	if err := principal.Validate(); err != nil {
+	if !principal.Authenticated {\n\t\treturn Session{}, errors.New("authenticated principal is required for browser sessions")\n\t}\n\tif err := principal.Validate(); err != nil {
 		return Session{}, err
 	}
 	id, err := randomURLToken(sessionIDBytes)

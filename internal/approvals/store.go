@@ -129,7 +129,7 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 		s.requests[id] = request
 		return request, ErrExpired
 	}
-	if request.RequesterID == principal.ID || riskRank(principal.MaxRisk) < riskRank(request.Risk) {
+	if !principal.CanApprove || request.RequesterID == principal.ID || riskRank(principal.MaxRisk) < riskRank(request.Risk) {
 		return Request{}, ErrForbidden
 	}
 	if len(principal.AllowedTools) > 0 {

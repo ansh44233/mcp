@@ -41,19 +41,19 @@ type ConnectorInfo struct {
 }
 
 type Config struct {
-	Version        string
-	Transports     []string
-	Tools          []ToolInfo
-	Connectors     []ConnectorInfo
-	HealthChecks   map[string]func(context.Context) error
-	AuditEvents    func(int) []audit.Event
+	Version              string
+	Transports           []string
+	Tools                []ToolInfo
+	Connectors           []ConnectorInfo
+	HealthChecks         map[string]func(context.Context) error
+	AuditEvents          func(int) []audit.Event
 	AuditEventsForTenant func(string, int) []audit.Event
-	RequirePrincipal bool
-	AuditHealth    func() audit.Health
-	WorkflowHealth func() workflows.Health
-	ApprovalHealth func() approvals.Health
-	ApprovalStore  *approvals.Store
-	StaticDir      string
+	RequirePrincipal     bool
+	AuditHealth          func() audit.Health
+	WorkflowHealth       func() workflows.Health
+	ApprovalHealth       func() approvals.Health
+	ApprovalStore        *approvals.Store
+	StaticDir            string
 }
 
 type status struct {

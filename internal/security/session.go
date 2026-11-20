@@ -56,7 +56,7 @@ func (s *SessionStore) Create(principal Principal) (Session, error) {
 		return Session{}, errors.New("session store is required")
 	}
 	if !principal.Authenticated {
-	\treturn Session{}, errors.New("authenticated principal is required for browser sessions")
+			return Session{}, errors.New("authenticated principal is required for browser sessions")
 	}
 	if err := principal.Validate(); err != nil {
 		return Session{}, err

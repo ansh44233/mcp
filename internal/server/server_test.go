@@ -136,7 +136,6 @@ func TestRuntimeCloseShutsDownManagedConnectors(t *testing.T) {
 	}
 }
 
-
 func TestRuntimeOwnsOptionalDurableWorkflowStore(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflows.jsonl")
 	runtime := NewRuntimeWithStores("", "", path)

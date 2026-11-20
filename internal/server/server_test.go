@@ -68,6 +68,8 @@ func TestGitHubReadOnlyToolsAreDiscoverable(t *testing.T) {
 		"github_commits_list":       false,
 		"github_issues_list":        false,
 		"github_pull_requests_list": false,
+		"github_file_get":          false,
+		"github_tree_get":          false,
 	}
 	for _, tool := range listed.Tools {
 		if _, ok := expected[tool.Name]; ok {

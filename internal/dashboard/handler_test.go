@@ -200,6 +200,7 @@ func TestMissingStaticBuildFallsBackToEmbeddedDashboard(t *testing.T) {
 }
 
 
+
 func TestWorkflowHealthEndpoint(t *testing.T) {
 	config := testConfig()
 	config.WorkflowHealth = func() workflows.Health {
@@ -220,14 +221,6 @@ func TestWorkflowHealthEndpoint(t *testing.T) {
 }
 
 func TestWorkflowHealthEndpointWithoutStore(t *testing.T) {
-	rec := httptest.NewRecorder()
-	HandlerWithConfig(testConfig()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "`healthy`:false") {
-		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "`healthy`:false") {
-			t.Fatalf("unexpected unconfigured workflow health: status=%d body=%s", rec.Code, rec.Body.String())
-		}
-	}
-}func TestWorkflowHealthEndpointWithoutStore(t *testing.T) {
 	rec := httptest.NewRecorder()
 	HandlerWithConfig(testConfig()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
 	var got workflows.Health

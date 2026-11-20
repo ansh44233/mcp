@@ -11,12 +11,12 @@ import (
 
 func testSessionPrincipal() Principal {
 	return Principal{
-		ID:             "subject-1",
-		TenantID:       "tenant-1",
-		Authenticated:  true,
-		Authentication: "oidc",
-		MaxRisk:        tools.RiskRead,
-		AllowedTools:   map[string]struct{}{"github_repository_get": {}},
+		ID:               "subject-1",
+		TenantID:         "tenant-1",
+		Authenticated:    true,
+		Authentication:   "oidc",
+		MaxRisk:          tools.RiskRead,
+		AllowedTools:     map[string]struct{}{"github_repository_get": {}},
 		AllowedProviders: map[string]struct{}{"github": {}},
 		AllowedResources: map[string]map[string]struct{}{
 			"github": {"acme/project": {}},

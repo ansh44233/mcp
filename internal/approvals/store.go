@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -154,6 +155,43 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 	request.DecidedAt = &now
 	s.requests[id] = request
 	return request, nil
+}
+
+
+ // List returns the current tenant's requests newest-first. It never exposes
+ // another tenant's records and caps result size to keep operator views bounded.
+func (s *Store) List(ctx context.Context, limit int) ([]Request, error) {
+	principal, ok := security.PrincipalFromContext(ctx)
+	if !ok || principal.Validate() != nil {
+		return nil, ErrForbidden
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	now := s.now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	requests := make([]Request, 0)
+	for id, request := range s.requests {
+		if request.TenantID != principal.TenantID {
+			continue
+		}
+		if request.Status == Pending && !now.Before(request.ExpiresAt) {
+			request.Status = Expired
+			s.requests[id] = request
+		}
+		requests = append(requests, request)
+	}
+	sort.Slice(requests, func(i, j int) bool {
+		if requests[i].CreatedAt.Equal(requests[j].CreatedAt) {
+			return requests[i].ID > requests[j].ID
+		}
+		return requests[i].CreatedAt.After(requests[j].CreatedAt)
+	})
+	if len(requests) > limit {
+		requests = requests[:limit]
+	}
+	return requests, nil
 }
 
 // Consume atomically spends an approved request for the original requester,

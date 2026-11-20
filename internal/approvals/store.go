@@ -113,12 +113,6 @@ func (s *Store) Create(ctx context.Context, definition tools.Definition, argumen
 	if err := s.persistLocked(request); err != nil {
 		return Request{}, err
 	}
-	if err := s.persistLocked(request); err != nil {
-		return Request{}, err
-	}
-	if err := s.persistLocked(request); err != nil {
-		return Request{}, err
-	}
 	s.requests[id] = request
 	return request, nil
 }
@@ -141,9 +135,6 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 	now := s.now().UTC()
 	if !now.Before(request.ExpiresAt) {
 		request.Status = Expired
-		if err := s.persistLocked(request); err != nil {
-			return Request{}, err
-		}
 		if err := s.persistLocked(request); err != nil {
 			return Request{}, err
 		}
@@ -173,6 +164,9 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 		request.Status = Approved
 	}
 	request.DecidedAt = &now
+	if err := s.persistLocked(request); err != nil {
+		return Request{}, err
+	}
 	s.requests[id] = request
 	return request, nil
 }
@@ -249,6 +243,9 @@ func (s *Store) Consume(ctx context.Context, id string, definition tools.Definit
 	}
 	request.Status = Consumed
 	request.ConsumedAt = &now
+	if err := s.persistLocked(request); err != nil {
+		return Request{}, err
+	}
 	s.requests[id] = request
 	return request, nil
 }
@@ -266,6 +263,9 @@ func (s *Store) Get(ctx context.Context, id string) (Request, error) {
 	}
 	if request.Status == Pending && !s.now().Before(request.ExpiresAt) {
 		request.Status = Expired
+		if err := s.persistLocked(request); err != nil {
+			return Request{}, err
+		}
 		s.requests[id] = request
 	}
 	return request, nil

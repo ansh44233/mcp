@@ -200,7 +200,7 @@ func TestBearerPrincipalReachesMCPToolExecution(t *testing.T) {
 	}
 
 	denied, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "github_repository_get",
+		Name:      "github_repository_get",
 		Arguments: map[string]any{"owner": "other", "repo": "private"},
 	})
 	if err != nil {

@@ -241,6 +241,11 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 
 // DashboardHandler exposes metadata and bounded health checks for this runtime's connectors.
 func (r *Runtime) DashboardHandler() http.Handler {
+	return r.DashboardHandlerWithStaticDir("")
+}
+
+// DashboardHandlerWithStaticDir serves the built React dashboard when available.
+func (r *Runtime) DashboardHandlerWithStaticDir(staticDir string) http.Handler {
 	if r == nil || r.registry == nil {
 		return dashboard.Handler()
 	}
@@ -290,6 +295,7 @@ func (r *Runtime) DashboardHandler() http.Handler {
 		HealthChecks: healthChecks,
 		AuditEvents:  func(limit int) []audit.Event { return r.audit.List(limit) },
 		AuditHealth:  func() audit.Health { return r.audit.Health() },
+		StaticDir:    staticDir,
 	})
 }
 

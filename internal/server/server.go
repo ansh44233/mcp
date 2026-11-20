@@ -60,6 +60,7 @@ func NewRuntime(token string) *Runtime {
 		Version: Version,
 	}, nil)
 
+	auditStore := audit.NewStore(audit.DefaultCapacity)
 	connectorRegistry := integrations.NewRegistry()
 	connectorManager := integrations.NewManager(connectorRegistry)
 	githubConnector := githubprovider.NewConnector()
@@ -80,7 +81,8 @@ func NewRuntime(token string) *Runtime {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "platform_status",
 		Description: "Return the Universal MCP server version, uptime, Go runtime and supported transports.",
-	}, func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, any, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+		started := time.Now()
 		result := map[string]any{
 			"name":         Name,
 			"version":      Version,
@@ -90,6 +92,7 @@ func NewRuntime(token string) *Runtime {
 			"transports":   []string{"stdio", "streamable-http"},
 			"integrations": []string{"github"},
 		}
+		auditStore.ObserveToolCall(ctx, platformtools.Definition{ID: "platform_status", Provider: "platform", Name: "status", Risk: platformtools.RiskRead}, "succeeded", time.Since(started))
 		return nil, result, nil
 	})
 
@@ -99,7 +102,6 @@ func NewRuntime(token string) *Runtime {
 			panic(fmt.Errorf("register tool %q: %w", definition.ID, err))
 		}
 	}
-	auditStore := audit.NewStore(audit.DefaultCapacity)
 	if err := platformtools.RegisterMCPWithObserver(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).AuthorizeRequest, auditStore); err != nil {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}

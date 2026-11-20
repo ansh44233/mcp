@@ -78,9 +78,10 @@ func run() int {
 		} else {
 			mux.Handle("/mcp", localPrincipalMiddleware(mcpHandler))
 		}
-		// The operator dashboard remains loopback-only. Its browser UI does not
-		// yet have an interactive OIDC login flow, so do not expose it remotely.
-		mux.Handle("/", runtime.DashboardHandlerWithStaticDir(env("MCP_DASHBOARD_DIR", "dashboard/dist")))
+		// The operator dashboard remains loopback-only. When OIDC is configured,
+		// require the same verified bearer identity on every dashboard API route.
+		dashboardHandler := runtime.DashboardHandlerWithStaticDir(env("MCP_DASHBOARD_DIR", "dashboard/dist"))
+		mountDashboard(mux, dashboardHandler, bearerMiddleware)
 		httpServer := &http.Server{
 			Addr: *addr, Handler: mux,
 			ReadHeaderTimeout: 5 * time.Second,
@@ -106,6 +107,17 @@ func run() int {
 		return 2
 	}
 	return 0
+}
+
+
+func mountDashboard(mux *http.ServeMux, dashboard http.Handler, bearerMiddleware func(http.Handler) http.Handler) {
+	if mux == nil || dashboard == nil {
+		panic("dashboard mux and handler are required")
+	}
+	if bearerMiddleware != nil {
+		mux.Handle("/api/", bearerMiddleware(dashboard))
+	}
+	mux.Handle("/", dashboard)
 }
 
 func newHTTPBearerMiddleware(

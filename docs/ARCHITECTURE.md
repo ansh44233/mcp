@@ -30,7 +30,7 @@ Until authentication, authorization, tenant isolation and remote transport harde
 
 Provider adapters expose typed, read-only operations. The server maps each operation to a provider-neutral tool definition containing a stable ID, provider ID, description, risk classification and JSON input schema. The catalog validates metadata and provides deterministic discovery. The MCP bridge publishes catalog entries through the official SDK and forwards validated arguments to an executor.
 
-The first GitHub adapter currently exposes repository metadata, branches, commits, issues and pull requests. It uses GET-only REST requests, bounded pagination, a request timeout, context cancellation and a response-size limit. `GITHUB_TOKEN` is optional and is read from the process environment; it is never stored in the repository.
+The first GitHub adapter currently exposes repository metadata, branches, commits, issues, pull requests, individual text-file reads and recursive Git tree listing. File reads decode GitHub's base64 payload, reject binary encodings and enforce a 1 MiB decoded-file limit. Recursive tree responses preserve GitHub's `truncated` flag so callers can detect incomplete results. The REST client uses GET-only requests, bounded pagination, a request timeout, context cancellation and a response-size limit. Primary and secondary rate-limit responses are returned as typed errors with retry-after and reset metadata when supplied. `GITHUB_TOKEN` is optional and is read from the process environment; it is never stored in the repository.
 
 The current tool bridge is a foundation, not a complete policy engine. Risk labels are metadata and do not yet enforce authorization or approval workflows. Only read-only GitHub operations are registered.
 

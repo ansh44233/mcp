@@ -17,9 +17,9 @@ func TestDiscoverOIDCAuthorizationEndpoints(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"issuer": issuer,
+			"issuer":                 issuer,
 			"authorization_endpoint": issuer + "/authorize",
-			"token_endpoint": issuer + "/token",
+			"token_endpoint":         issuer + "/token",
 		})
 	}))
 	defer server.Close()
@@ -35,9 +35,9 @@ func TestDiscoverOIDCAuthorizationEndpoints(t *testing.T) {
 
 func TestDiscoverOIDCAuthorizationEndpointsRejectsUntrustedMetadata(t *testing.T) {
 	for _, testCase := range []struct {
-		name string
+		name          string
 		authorization string
-		token string
+		token         string
 	}{
 		{name: "authorization host", authorization: "https://attacker.example/authorize", token: "/token"},
 		{name: "token host", authorization: "/authorize", token: "https://attacker.example/token"},
@@ -50,7 +50,7 @@ func TestDiscoverOIDCAuthorizationEndpointsRejectsUntrustedMetadata(t *testing.T
 				_ = json.NewEncoder(w).Encode(map[string]string{
 					"issuer": issuer,
 					"authorization_endpoint": testCase.authorization,
-					"token_endpoint": testCase.token,
+					"token_endpoint":         testCase.token,
 				})
 			}))
 			defer server.Close()

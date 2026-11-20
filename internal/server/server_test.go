@@ -150,6 +150,11 @@ func TestRuntimeOwnsOptionalDurableWorkflowStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	healthResponse := httptest.NewRecorder()
+	runtime.DashboardHandler().ServeHTTP(healthResponse, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
+	if healthResponse.Code != http.StatusOK || !strings.Contains(healthResponse.Body.String(), `"persistent":true`) || !strings.Contains(healthResponse.Body.String(), `"workflows":1`) {
+		t.Fatalf("workflow health endpoint did not reflect runtime store: status=%d body=%s", healthResponse.Code, healthResponse.Body.String())
+	}
 	if err := runtime.Close(context.Background()); err != nil {
 		t.Fatalf("close runtime: %v", err)
 	}

@@ -28,12 +28,12 @@ func New() *mcp.Server {
 		Description: "Return the Universal MCP server version, uptime, Go runtime and supported transports.",
 	}, func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, any, error) {
 		result := map[string]any{
-			"name":       Name,
-			"version":    Version,
-			"status":     "ok",
-			"uptime_sec": int64(time.Since(startedAt).Seconds()),
-			"go_version": runtime.Version(),
-			"transports": []string{"stdio", "streamable-http"},
+			"name":         Name,
+			"version":      Version,
+			"status":       "ok",
+			"uptime_sec":   int64(time.Since(startedAt).Seconds()),
+			"go_version":   runtime.Version(),
+			"transports":   []string{"stdio", "streamable-http"},
 			"integrations": []string{},
 		}
 		return nil, result, nil

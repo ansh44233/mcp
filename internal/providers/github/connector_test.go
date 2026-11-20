@@ -175,3 +175,16 @@ func TestClientReturnsTypedRateLimitError(t *testing.T) {
 		t.Fatalf("missing rate limit metadata: %#v", rateLimit)
 	}
 }
+
+func TestConnectorRejectsLookalikeLoopbackHosts(t *testing.T) {
+	for _, baseURL := range []string{
+		"http://localhost.attacker.example",
+		"http://127.0.0.1.attacker.example",
+		"http://example.com",
+	} {
+		connector := NewConnector()
+		if err := connector.Initialize(context.Background(), integrations.Config{"base_url": baseURL}); err == nil {
+			t.Errorf("expected insecure host %q to be rejected", baseURL)
+		}
+	}
+}

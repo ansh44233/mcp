@@ -182,50 +182,59 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 	}
 }
 
-// DashboardHandler exposes metadata from the same definitions used by the MCP runtime.
+// DashboardHandler exposes metadata and bounded health checks for registered connectors.
 func DashboardHandler() http.Handler {
+	registry := integrations.NewRegistry()
 	connector := githubprovider.NewConnector()
-	metadata := connector.Metadata()
-	operations := connector.Operations()
-	operationNames := make([]string, 0, len(operations))
-	readOnly := true
-	for _, operation := range operations {
-		operationNames = append(operationNames, operation.ID)
-		if !operation.ReadOnly {
-			readOnly = false
+	if err := connector.Initialize(context.Background(), integrations.Config{"token": os.Getenv("GITHUB_TOKEN")}); err != nil {
+		panic(fmt.Errorf("initialize dashboard GitHub connector: %w", err))
+	}
+	if err := registry.Register(connector); err != nil {
+		panic(fmt.Errorf("register dashboard GitHub connector: %w", err))
+	}
+
+	connectors := make([]dashboard.ConnectorInfo, 0)
+	healthChecks := make(map[string]func(context.Context) error)
+	for _, metadata := range registry.List() {
+		registered, ok := registry.Get(metadata.ID)
+		if !ok {
+			continue
 		}
+		operations := registered.Operations()
+		operationNames := make([]string, 0, len(operations))
+		readOnly := true
+		for _, operation := range operations {
+			operationNames = append(operationNames, operation.ID)
+			if !operation.ReadOnly {
+				readOnly = false
+			}
+		}
+		connectors = append(connectors, dashboard.ConnectorInfo{
+			ID: metadata.ID, Name: metadata.Name, Version: metadata.Version,
+			Description: metadata.Description, Operations: operationNames, ReadOnly: readOnly,
+		})
+		healthChecks[metadata.ID] = registered.HealthCheck
 	}
 
 	definitions := githubToolDefinitions()
 	toolInfos := make([]dashboard.ToolInfo, 0, len(definitions)+1)
 	toolInfos = append(toolInfos, dashboard.ToolInfo{
-		ID:          "platform_status",
-		Provider:    "platform",
-		Name:        "status",
-		Description: "Return server version, uptime and runtime capabilities.",
-		Risk:        "read",
+		ID: "platform_status", Provider: "platform", Name: "status",
+		Description: "Return the server version, uptime, Go runtime and supported transports.",
+		Risk: "read",
 	})
 	for _, definition := range definitions {
 		toolInfos = append(toolInfos, dashboard.ToolInfo{
-			ID:          definition.ID,
-			Provider:    definition.Provider,
-			Name:        definition.Name,
-			Description: definition.Description,
-			Risk:        string(definition.Risk),
+			ID: definition.ID, Provider: definition.Provider, Name: definition.Name,
+			Description: definition.Description, Risk: string(definition.Risk),
 		})
 	}
 
 	return dashboard.HandlerWithConfig(dashboard.Config{
-		Version:    Version,
+		Version: Version,
 		Transports: []string{"stdio", "streamable-http"},
-		Tools:      toolInfos,
-		Connectors: []dashboard.ConnectorInfo{{
-			ID:          metadata.ID,
-			Name:        metadata.Name,
-			Version:     metadata.Version,
-			Description: metadata.Description,
-			Operations:  operationNames,
-			ReadOnly:    readOnly,
-		}},
+		Tools: toolInfos,
+		Connectors: connectors,
+		HealthChecks: healthChecks,
 	})
 }

@@ -28,6 +28,7 @@ func TestBearerMiddlewareAttachesVerifiedPrincipal(t *testing.T) {
 		return Principal{
 			ID: info.UserID, TenantID: "tenant-7", MaxRisk: tools.RiskRead,
 			AllowedProviders: map[string]struct{}{"github": {}},
+			AllowedResources: map[string]map[string]struct{}{"github": {"acme/demo": {}}},
 		}, nil
 	})
 	if err != nil {

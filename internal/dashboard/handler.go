@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ansh44233/mcp/internal/audit"
+	"github.com/ansh44233/mcp/internal/workflows"
 )
 
 var startedAt = time.Now()
@@ -43,6 +44,7 @@ type Config struct {
 	HealthChecks map[string]func(context.Context) error
 	AuditEvents  func(int) []audit.Event
 	AuditHealth  func() audit.Health
+	WorkflowHealth func() workflows.Health
 	StaticDir    string
 }
 
@@ -109,6 +111,13 @@ func HandlerWithConfig(config Config) http.Handler {
 			result = append(result, tool)
 		}
 		writeJSON(w, map[string]any{"tools": result, "count": len(result)})
+	})
+	mux.HandleFunc("GET /api/v1/workflows/health", func(w http.ResponseWriter, r *http.Request) {
+		if config.WorkflowHealth == nil {
+			writeJSON(w, workflows.Health{})
+			return
+		}
+		writeJSON(w, config.WorkflowHealth())
 	})
 	mux.HandleFunc("GET /api/v1/audit/health", func(w http.ResponseWriter, r *http.Request) {
 		if config.AuditHealth == nil {

@@ -51,7 +51,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 
 - More complete connector SDK, runtime status reporting and dynamic registration.
 - GitHub write operations behind explicit authorization and approval policies.
-- Authentication, authorization, secret-provider integration, tenant isolation and audit history.
+- Trusted authentication middleware and end-to-end principal propagation; tenant-aware resource enforcement, secret-provider integration and audit history. Current principal tenant IDs are identity metadata only and do not yet enforce data isolation.
 - Workflow execution, retries and durable checkpoints.
 - Full dashboard management views for connectors, sessions, workflows, approvals, logs and security; current connector/tool views are read-only.
 - Additional providers and cross-provider search.

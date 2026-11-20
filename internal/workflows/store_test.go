@@ -3,6 +3,9 @@ package workflows
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ansh44233/mcp/internal/security"
@@ -88,5 +91,105 @@ func TestWorkflowCopiesAndCancellation(t *testing.T) {
 	}
 	if _, err := store.StartStep(ctx, item.ID, "step-01"); !errors.Is(err, ErrInvalidState) {
 		t.Fatalf("cancelled workflow must be terminal: %v", err)
+	}
+}
+
+func TestFileStoreRecoversWorkflowAndInterruptedStep(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflows.jsonl")
+	ctx := workflowContext("alice", "tenant-a", true)
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := store.Create(ctx, "durable run", []string{"tool_read", "tool_list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.StartStep(ctx, item.ID, "step-01"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CompleteStep(ctx, item.ID, "step-01"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.StartStep(ctx, item.ID, "step-02"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recovered.Close()
+	got, err := recovered.Get(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != Failed || got.Steps[1].Status != Failed ||
+		got.Steps[1].ErrorCode != "interrupted_after_restart" {
+		t.Fatalf("running step must recover as explicit failure, not auto-replay: %+v", got)
+	}
+	if got.Steps[0].Status != Succeeded || got.Steps[0].Attempts != 1 {
+		t.Fatalf("completed checkpoint was not recovered: %+v", got.Steps[0])
+	}
+	if health := recovered.Health(); !health.Persistent || !health.Healthy || health.Sequence != 5 {
+		t.Fatalf("unexpected recovered journal health: %+v", health)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "secret-argument") {
+		t.Fatal("workflow journal must not contain tool arguments")
+	}
+}
+
+func TestFileStoreRejectsTamperedJournal(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflows.jsonl")
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(workflowContext("alice", "tenant-a", true), "audit", []string{"tool_read"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := strings.Replace(string(data), "alice", "mallory", 1)
+	if tampered == string(data) {
+		t.Fatal("expected journal content to contain owner")
+	}
+	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewFileStore(path, 10); err == nil {
+		t.Fatal("tampered journal must fail closed")
+	}
+}
+
+func TestFileStoreDoesNotPublishAfterAppendFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflows.jsonl")
+	store, err := NewFileStore(path, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(workflowContext("alice", "tenant-a", true), "closed", []string{"tool_read"}); err == nil {
+		t.Fatal("write to closed workflow store should fail")
+	}
+	if health := store.Health(); health.Healthy {
+		t.Fatalf("closed store should be unhealthy: %+v", health)
+	}
+	if _, err := store.List(workflowContext("alice", "tenant-a", true), 10); err != nil {
+		t.Fatalf("read from closed store should remain available: %v", err)
 	}
 }

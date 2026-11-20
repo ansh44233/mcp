@@ -37,13 +37,19 @@ func NewWithGitHubToken(token string) *mcp.Server {
 		Version: Version,
 	}, nil)
 
+	connectorRegistry := integrations.NewRegistry()
+	connectorManager := integrations.NewManager(connectorRegistry)
 	githubConnector := githubprovider.NewConnector()
-	if err := githubConnector.Initialize(context.Background(), integrations.Config{
+	if err := connectorManager.Register(context.Background(), githubConnector, integrations.Config{
 		"token": token,
 	}); err != nil {
-		panic(fmt.Errorf("initialize GitHub connector: %w", err))
+		panic(fmt.Errorf("register GitHub connector: %w", err))
 	}
-	githubClient, err := githubConnector.Client()
+	registeredGitHub, ok := connectorRegistry.Get("github")
+	if !ok {
+		panic("GitHub connector missing after successful registration")
+	}
+	githubClient, err := registeredGitHub.(*githubprovider.Connector).Client()
 	if err != nil {
 		panic(err)
 	}
@@ -185,11 +191,9 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 // DashboardHandler exposes metadata and bounded health checks for registered connectors.
 func DashboardHandler() http.Handler {
 	registry := integrations.NewRegistry()
+	manager := integrations.NewManager(registry)
 	connector := githubprovider.NewConnector()
-	if err := connector.Initialize(context.Background(), integrations.Config{"token": os.Getenv("GITHUB_TOKEN")}); err != nil {
-		panic(fmt.Errorf("initialize dashboard GitHub connector: %w", err))
-	}
-	if err := registry.Register(connector); err != nil {
+	if err := manager.Register(context.Background(), connector, integrations.Config{"token": os.Getenv("GITHUB_TOKEN")}); err != nil {
 		panic(fmt.Errorf("register dashboard GitHub connector: %w", err))
 	}
 

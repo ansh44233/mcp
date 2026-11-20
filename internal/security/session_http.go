@@ -2,6 +2,7 @@ package security
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -13,8 +14,16 @@ func NewSessionMiddleware(store *SessionStore, allowedOrigin string) (func(http.
 	if store == nil {
 		return nil, ErrSessionNotFound
 	}
-	allowedOrigin = strings.TrimRight(strings.TrimSpace(allowedOrigin), "/")
-	if allowedOrigin == "" || strings.ContainsAny(allowedOrigin, "\r\n") {
+	allowedOrigin = strings.TrimSpace(allowedOrigin)
+	parsedOrigin, err := url.Parse(allowedOrigin)
+	if err != nil || parsedOrigin == nil || !parsedOrigin.IsAbs() ||
+		(parsedOrigin.Scheme != "https" && parsedOrigin.Scheme != "http") ||
+		parsedOrigin.Host == "" || parsedOrigin.Hostname() == "" ||
+		parsedOrigin.User != nil || parsedOrigin.Path != "" ||
+		parsedOrigin.RawPath != "" || parsedOrigin.RawQuery != "" ||
+		parsedOrigin.Fragment != "" || parsedOrigin.Opaque != "" ||
+		strings.ContainsAny(allowedOrigin, "\r\n") ||
+		parsedOrigin.String() != allowedOrigin {
 		return nil, http.ErrNotSupported
 	}
 	return func(next http.Handler) http.Handler {

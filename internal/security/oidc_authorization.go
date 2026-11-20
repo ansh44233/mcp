@@ -83,8 +83,8 @@ func validateOIDCEndpoint(raw string, issuer *url.URL, kind string) (string, err
 	if err != nil || !endpoint.IsAbs() || endpoint.Host == "" || endpoint.User != nil || endpoint.Fragment != "" {
 		return "", fmt.Errorf("OIDC discovery contains an invalid %s endpoint", kind)
 	}
-	if endpoint.Scheme != issuer.Scheme || !strings.EqualFold(endpoint.Hostname(), issuer.Hostname()) {
-		return "", fmt.Errorf("OIDC %s endpoint must use the issuer scheme and hostname", kind)
+	if endpoint.Scheme != issuer.Scheme || !strings.EqualFold(endpoint.Host, issuer.Host) {
+		return "", fmt.Errorf("OIDC %s endpoint must use the issuer origin", kind)
 	}
 	if endpoint.Scheme == "https" || (endpoint.Scheme == "http" && isLoopbackHost(endpoint.Hostname())) {
 		return endpoint.String(), nil

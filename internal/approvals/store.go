@@ -36,20 +36,20 @@ var (
 )
 
 type Request struct {
-	ID             string        `json:"id"`
-	TenantID       string        `json:"tenant_id"`
-	RequesterID    string        `json:"requester_id"`
-	ApproverID     string        `json:"approver_id,omitempty"`
-	ToolID         string        `json:"tool_id"`
-	Provider       string        `json:"provider"`
-	Risk           tools.Risk    `json:"risk"`
-	ArgumentsHash  string        `json:"arguments_hash"`
-	Status         Status        `json:"status"`
-	Reason         string        `json:"reason,omitempty"`
-	CreatedAt      time.Time     `json:"created_at"`
-	ExpiresAt      time.Time     `json:"expires_at"`
-	DecidedAt      *time.Time    `json:"decided_at,omitempty"`
-	ConsumedAt     *time.Time    `json:"consumed_at,omitempty"`
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	RequesterID   string     `json:"requester_id"`
+	ApproverID    string     `json:"approver_id,omitempty"`
+	ToolID        string     `json:"tool_id"`
+	Provider      string     `json:"provider"`
+	Risk          tools.Risk `json:"risk"`
+	ArgumentsHash string     `json:"arguments_hash"`
+	Status        Status     `json:"status"`
+	Reason        string     `json:"reason,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	DecidedAt     *time.Time `json:"decided_at,omitempty"`
+	ConsumedAt    *time.Time `json:"consumed_at,omitempty"`
 }
 
 type Store struct {

@@ -123,7 +123,9 @@ func NewRuntimeWithAllStores(token, auditPath, workflowPath, approvalPath string
 		var err error
 		approvalStore, err = approvals.NewFileStore(approvalPath, 10000)
 		if err != nil {
-			if workflowStore != nil { _ = workflowStore.Close() }
+			if workflowStore != nil {
+				_ = workflowStore.Close()
+			}
 			_ = auditStore.Close()
 			panic(fmt.Errorf("initialize approval journal: %w", err))
 		}
@@ -347,7 +349,7 @@ func (r *Runtime) DashboardHandlerWithStaticDir(staticDir string) http.Handler {
 			return r.workflows.Health()
 		},
 		ApprovalHealth: func() approvals.Health { return r.approvals.Health() },
-		StaticDir: staticDir,
+		StaticDir:      staticDir,
 	})
 }
 

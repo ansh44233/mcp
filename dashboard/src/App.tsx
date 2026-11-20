@@ -33,7 +33,8 @@ export default function App() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [auditHealth, setAuditHealth] = useState<AuditHealth | null>(null);\n  const [approvalHealth, setApprovalHealth] = useState<ApprovalHealth | null>(null);
+  const [auditHealth, setAuditHealth] = useState<AuditHealth | null>(null);
+  const [approvalHealth, setApprovalHealth] = useState<ApprovalHealth | null>(null);
   const [query, setQuery] = useState("");
   const [provider, setProvider] = useState("all");
   const [updated, setUpdated] = useState<Date | null>(null);
@@ -46,7 +47,8 @@ export default function App() {
         api<{ tools: Tool[] }>("/api/v1/tools"),
         api<{ connectors: Connector[] }>("/api/v1/connectors"),
         api<{ events: AuditEvent[] }>("/api/v1/audit?limit=25"),
-        api<AuditHealth>("/api/v1/audit/health"),\n        api<ApprovalHealth>("/api/v1/approvals/health"),
+        api<AuditHealth>("/api/v1/audit/health"),
+        api<ApprovalHealth>("/api/v1/approvals/health"),
       ]);
       setStatus(s); setTools(t.tools); setConnectors(c.connectors);
       setEvents(a.events); setAuditHealth(h); setApprovalHealth(p); setUpdated(new Date()); setError("");

@@ -9,10 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/audit"
 	"github.com/ansh44233/mcp/internal/workflows"
+	"github.com/ansh44233/mcp/internal/security"
+	"github.com/ansh44233/mcp/internal/tools"
 )
 
 func testConfig() Config {
@@ -153,6 +156,79 @@ func TestAuditEventsEndpoint(t *testing.T) {
 	HandlerWithConfig(config).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/audit?limit=2", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"sequence":7`) {
 		t.Fatalf("unexpected audit response: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func approvalContext(id, tenant string, canApprove bool) context.Context {
+	return security.WithPrincipal(context.Background(), security.Principal{
+		ID: id, TenantID: tenant, Authenticated: true, Authentication: "test",
+		CanApprove: canApprove, MaxRisk: tools.RiskDestructive,
+	})
+}
+
+func TestApprovalDashboardAPIEnforcesRequesterAndReviewerScopes(t *testing.T) {
+	store := approvals.NewStore(10)
+	definition := tools.Definition{ID: "repo_update", Provider: "github", Risk: tools.RiskWrite}
+	first, err := store.Create(approvalContext("alice", "tenant-a", false), definition, json.RawMessage(`{"x":1}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Create(approvalContext("carol", "tenant-a", false), definition, json.RawMessage(`{"x":2}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := testConfig()
+	config.ApprovalStore = store
+	handler := HandlerWithConfig(config)
+
+	unauth := httptest.NewRecorder()
+	handler.ServeHTTP(unauth, httptest.NewRequest(http.MethodGet, "/api/v1/approvals", nil))
+	if unauth.Code != http.StatusForbidden {
+		t.Fatalf("unauthenticated list status = %d, want %d", unauth.Code, http.StatusForbidden)
+	}
+
+	ownerReq := httptest.NewRequest(http.MethodGet, "/api/v1/approvals", nil)
+	ownerReq = ownerReq.WithContext(approvalContext("alice", "tenant-a", false))
+	ownerRec := httptest.NewRecorder()
+	handler.ServeHTTP(ownerRec, ownerReq)
+	var ownerResult struct {
+		Requests []approvals.Request `json:"requests"`
+		Count int `json:"count"`
+	}
+	if err := json.Unmarshal(ownerRec.Body.Bytes(), &ownerResult); err != nil {
+		t.Fatal(err)
+	}
+	if ownerRec.Code != http.StatusOK || ownerResult.Count != 1 || ownerResult.Requests[0].ID != first.ID {
+		t.Fatalf("requester list was not scoped: status=%d result=%+v", ownerRec.Code, ownerResult)
+	}
+
+	decision := httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+first.ID+"/decision", strings.NewReader(`{"approve":true,"reason":"reviewed"}`))
+	decision = decision.WithContext(approvalContext("reviewer", "tenant-a", true))
+	decisionRec := httptest.NewRecorder()
+	handler.ServeHTTP(decisionRec, decision)
+	if decisionRec.Code != http.StatusOK || !strings.Contains(decisionRec.Body.String(), `"status":"approved"`) {
+		t.Fatalf("review decision failed: status=%d body=%s", decisionRec.Code, decisionRec.Body.String())
+	}
+}
+
+func TestApprovalDecisionRequiresExplicitBooleanAndBoundedJSON(t *testing.T) {
+	store := approvals.NewStore(10)
+	definition := tools.Definition{ID: "repo_update", Provider: "github", Risk: tools.RiskWrite}
+	request, err := store.Create(approvalContext("alice", "tenant-a", false), definition, json.RawMessage(`{}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := testConfig()
+	config.ApprovalStore = store
+	handler := HandlerWithConfig(config)
+	for _, body := range []string{`{"reason":"missing decision"}`, `{"approve":true,"unknown":1}`, `{"approve":true} {"approve":false}`} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+request.ID+"/decision", strings.NewReader(body))
+		req = req.WithContext(approvalContext("reviewer", "tenant-a", true))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("payload %q status = %d, want %d", body, rec.Code, http.StatusBadRequest)
+		}
 	}
 }
 

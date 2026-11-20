@@ -15,6 +15,12 @@ type Executor func(context.Context, Definition, json.RawMessage) (any, error)
 // RegisterMCP publishes every catalog entry as an MCP tool. The SDK validates
 // incoming arguments against each definition's JSON Schema before execution.
 func RegisterMCP(server *mcp.Server, registry *Registry, execute Executor) error {
+	return RegisterMCPWithPolicy(server, registry, execute, ReadOnlyPolicy())
+}
+
+// RegisterMCPWithPolicy publishes catalog tools with an execution-time policy.
+// Authorization runs after SDK schema validation and immediately before execution.
+func RegisterMCPWithPolicy(server *mcp.Server, registry *Registry, execute Executor, policy Policy) error {
 	if server == nil {
 		return fmt.Errorf("MCP server is required")
 	}
@@ -36,6 +42,9 @@ func RegisterMCP(server *mcp.Server, registry *Registry, execute Executor) error
 			arguments, err := json.Marshal(input)
 			if err != nil {
 				return nil, nil, fmt.Errorf("encode arguments for %q: %w", definition.ID, err)
+			}
+			if err := policy.Authorize(definition); err != nil {
+				return nil, nil, fmt.Errorf("authorize %q: %w", definition.ID, err)
 			}
 			output, err := execute(ctx, definition, arguments)
 			if err != nil {

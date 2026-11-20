@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -102,5 +103,34 @@ func TestDashboardRoot(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Search the exact tool definitions") {
 		t.Fatal("dashboard does not contain the tool catalog interface")
+	}
+}
+
+func TestConnectorHealthCheckEndpoint(t *testing.T) {
+	config := testConfig()
+	config.HealthChecks = map[string]func(context.Context) error{
+		"github": func(context.Context) error { return nil },
+		"broken": func(context.Context) error { return context.DeadlineExceeded },
+	}
+	handler := HandlerWithConfig(config)
+
+	for _, test := range []struct {
+		id       string
+		wantCode int
+		wantBody string
+	}{
+		{"github", http.StatusOK, `"status":"healthy"`},
+		{"broken", http.StatusOK, `"status":"unhealthy"`},
+		{"missing", http.StatusNotFound, ""},
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/connectors/"+test.id+"/health-check", nil)
+		handler.ServeHTTP(rec, req)
+		if rec.Code != test.wantCode {
+			t.Errorf("%s: status=%d want=%d", test.id, rec.Code, test.wantCode)
+		}
+		if test.wantBody != "" && !strings.Contains(rec.Body.String(), test.wantBody) {
+			t.Errorf("%s: body %q does not contain %q", test.id, rec.Body.String(), test.wantBody)
+		}
 	}
 }

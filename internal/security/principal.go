@@ -18,6 +18,9 @@ type Principal struct {
 	MaxRisk          tools.Risk
 	AllowedTools     map[string]struct{}
 	AllowedProviders map[string]struct{}
+	// AllowedResources maps provider IDs to canonical resource IDs (for GitHub: owner/repo).
+	// A nil map is unrestricted; a non-nil map is an explicit resource allowlist.
+	AllowedResources map[string]map[string]struct{}
 }
 
 type principalContextKey struct{}
@@ -33,6 +36,7 @@ func LocalPrincipal() Principal {
 func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 	principal.AllowedTools = cloneSet(principal.AllowedTools)
 	principal.AllowedProviders = cloneSet(principal.AllowedProviders)
+	principal.AllowedResources = cloneResourceSets(principal.AllowedResources)
 	return context.WithValue(ctx, principalContextKey{}, principal)
 }
 
@@ -44,6 +48,7 @@ func PrincipalFromContext(ctx context.Context) (Principal, bool) {
 	}
 	principal.AllowedTools = cloneSet(principal.AllowedTools)
 	principal.AllowedProviders = cloneSet(principal.AllowedProviders)
+	principal.AllowedResources = cloneResourceSets(principal.AllowedResources)
 	return principal, true
 }
 
@@ -66,6 +71,16 @@ func (p Principal) Validate() error {
 			return fmt.Errorf("principal contains an empty tool scope")
 		}
 	}
+	for provider, resources := range p.AllowedResources {
+		if strings.TrimSpace(provider) == "" {
+			return fmt.Errorf("principal contains an empty resource-scope provider")
+		}
+		for resource := range resources {
+			if strings.TrimSpace(resource) == "" {
+				return fmt.Errorf("principal contains an empty resource scope")
+			}
+		}
+	}
 	for provider := range p.AllowedProviders {
 		if strings.TrimSpace(provider) == "" {
 			return fmt.Errorf("principal contains an empty provider scope")
@@ -81,6 +96,17 @@ func cloneSet(input map[string]struct{}) map[string]struct{} {
 	output := make(map[string]struct{}, len(input))
 	for key := range input {
 		output[key] = struct{}{}
+	}
+	return output
+}
+
+func cloneResourceSets(input map[string]map[string]struct{}) map[string]map[string]struct{} {
+	if input == nil {
+		return nil
+	}
+	output := make(map[string]map[string]struct{}, len(input))
+	for provider, resources := range input {
+		output[provider] = cloneSet(resources)
 	}
 	return output
 }

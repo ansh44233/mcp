@@ -105,6 +105,47 @@ func TestStaticPrincipalResolverRequiresExplicitLeastPrivilegeScopes(t *testing.
 	}
 }
 
+func TestStaticPrincipalResolverRejectsAmbiguousScopes(t *testing.T) {
+	base := PrincipalGrant{
+		TenantID:         "tenant-a",
+		MaxRisk:          tools.RiskRead,
+		AllowedTools:     []string{"github_repository_get"},
+		AllowedProviders: []string{"github"},
+		AllowedResources: map[string][]string{"github": {"Acme/Demo"}},
+	}
+	tests := map[string]func(*PrincipalGrant){
+		"duplicate tool": func(g *PrincipalGrant) { g.AllowedTools = []string{"github_repository_get", "github_repository_get"} },
+		"whitespace tool": func(g *PrincipalGrant) { g.AllowedTools = []string{" github_repository_get"} },
+		"duplicate resource": func(g *PrincipalGrant) { g.AllowedResources["github"] = []string{"acme/demo", "acme/demo"} },
+		"resource without provider": func(g *PrincipalGrant) { g.AllowedProviders = []string{"gitlab"} },
+		"whitespace resource": func(g *PrincipalGrant) { g.AllowedResources["github"] = []string{"acme/demo "} },
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			grant := base
+			grant.AllowedTools = append([]string(nil), base.AllowedTools...)
+			grant.AllowedProviders = append([]string(nil), base.AllowedProviders...)
+			grant.AllowedResources = map[string][]string{"github": append([]string(nil), base.AllowedResources["github"]...)}
+			mutate(&grant)
+			if _, err := NewStaticPrincipalResolver(map[string]PrincipalGrant{"subject": grant}); err == nil {
+				t.Fatal("ambiguous grant must be rejected")
+			}
+		})
+	}
+
+	resolve, err := NewStaticPrincipalResolver(map[string]PrincipalGrant{"subject": base})
+	if err != nil {
+		t.Fatalf("case-insensitive GitHub resource grant rejected: %v", err)
+	}
+	principal, err := resolve(context.Background(), &auth.TokenInfo{UserID: "subject"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := principal.AllowedResources["github"]["acme/demo"]; !ok {
+		t.Fatal("GitHub resource grants should be canonicalized case-insensitively")
+	}
+}
+
 func TestLoadPrincipalGrantsRejectsUnknownAndTrailingFields(t *testing.T) {
 	dir := t.TempDir()
 	valid := `{

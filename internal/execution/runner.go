@@ -29,6 +29,7 @@ type RetryPolicy struct {
 // server-side registration, never by tool-call arguments.
 type Operation struct {
 	ID          string
+	Timeout     time.Duration
 	RetryPolicy RetryPolicy
 }
 
@@ -91,7 +92,11 @@ func (r *Runner) Execute(ctx context.Context, operation Operation, fn func(conte
 		return Result{Duration: time.Since(started)}, ctx.Err()
 	}
 
-	executionCtx, cancel := context.WithTimeout(ctx, r.timeout)
+	timeout := r.timeout
+	if operation.Timeout > 0 && operation.Timeout < timeout {
+		timeout = operation.Timeout
+	}
+	executionCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	retryBudget := 0

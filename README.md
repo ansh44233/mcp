@@ -113,6 +113,18 @@ The Vite development server proxies `/api` and `/healthz` to the local Go server
 
 The dashboard build has its own GitHub Actions type-check/build workflow.
 
+For HTTP-mode deployments, build the frontend before starting the Go server:
+
+```bash
+cd dashboard
+npm install
+npm run build
+cd ..
+go run ./cmd/universal-mcp -transport http
+```
+
+The server serves `dashboard/dist` when present. Set `MCP_DASHBOARD_DIR` to use another built-asset directory. If the directory or its `index.html` is absent, the embedded fallback console remains available. API endpoints continue to be served by the Go runtime.
+
 ## GitHub MCP tools
 
 The server currently advertises these read-only tools:

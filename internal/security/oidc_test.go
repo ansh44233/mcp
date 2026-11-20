@@ -190,7 +190,6 @@ func TestIntrospectionAudienceAcceptsStringAndArray(t *testing.T) {
 	}
 }
 
-
 func TestValidateIntrospectionEndpointRequiresExactIssuerOrigin(t *testing.T) {
 	issuer, err := url.Parse("https://issuer.example:8443")
 	if err != nil {

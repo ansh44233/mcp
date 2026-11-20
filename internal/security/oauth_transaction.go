@@ -6,6 +6,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"crypto/subtle"
+	"net/http"
 )
 
 var ErrOAuthTransactionNotFound = errors.New("OAuth transaction not found")
@@ -109,4 +111,42 @@ func (s *OAuthTransactionStore) expireLocked(now time.Time) {
 			delete(s.transactions, state)
 		}
 	}
+}
+
+const oauthStateCookieName = "universal_mcp_oauth_state"
+
+// SetOAuthStateCookie binds an authorization transaction to the browser that
+// initiated it. Lax permits the identity provider's top-level GET callback;
+// HttpOnly prevents page scripts from reading the state cookie.
+func SetOAuthStateCookie(w http.ResponseWriter, transaction OAuthTransaction, secure bool, now time.Time) {
+	maxAge := int(transaction.ExpiresAt.Sub(now).Seconds())
+	if maxAge < 1 {
+		maxAge = 1
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: oauthStateCookieName, Value: transaction.State, Path: "/",
+		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
+		Expires: transaction.ExpiresAt, MaxAge: maxAge,
+	})
+}
+
+// ValidateOAuthStateCookie requires the callback's browser to present the
+// same state that was stored server-side. State is compared in constant time.
+func ValidateOAuthStateCookie(r *http.Request, state string) error {
+	cookie, err := r.Cookie(oauthStateCookieName)
+	if err != nil || !validOpaqueToken(state, oauthStateBytes) ||
+		len(cookie.Value) != len(state) ||
+		subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(state)) != 1 {
+		return ErrOAuthTransactionNotFound
+	}
+	return nil
+}
+
+// ClearOAuthStateCookie removes the short-lived browser-binding cookie.
+func ClearOAuthStateCookie(w http.ResponseWriter, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name: oauthStateCookieName, Value: "", Path: "/", HttpOnly: true,
+		Secure: secure, SameSite: http.SameSiteLaxMode,
+		MaxAge: -1, Expires: time.Unix(1, 0),
+	})
 }

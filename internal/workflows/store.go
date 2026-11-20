@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -59,6 +60,11 @@ type Store struct {
 	maxItems int
 	now      func() time.Time
 	newID    func() (string, error)
+	file     *os.File
+	next     uint64
+	lastHash string
+	lastError error
+	closed   bool
 }
 
 func NewStore(maxItems int) *Store {
@@ -117,6 +123,9 @@ func (s *Store) Create(ctx context.Context, name string, toolIDs []string) (Work
 	}
 	if _, exists := s.items[id]; exists {
 		return Workflow{}, errors.New("workflow ID collision")
+	}
+	if err := s.persistLocked(item); err != nil {
+		return Workflow{}, err
 	}
 	s.items[id] = cloneWorkflow(item)
 	return cloneWorkflow(item), nil
@@ -196,6 +205,9 @@ func (s *Store) StartStep(ctx context.Context, id, stepID string) (Workflow, err
 	item.Steps[index].ErrorCode = ""
 	item.Status = Running
 	item.UpdatedAt = now
+	if err := s.persistLocked(item); err != nil {
+		return Workflow{}, err
+	}
 	s.items[id] = cloneWorkflow(item)
 	return cloneWorkflow(item), nil
 }
@@ -241,6 +253,9 @@ func (s *Store) finishStep(ctx context.Context, id, stepID string, success bool,
 		item.Status = Failed
 	}
 	item.UpdatedAt = now
+	if err := s.persistLocked(item); err != nil {
+		return Workflow{}, err
+	}
 	s.items[id] = cloneWorkflow(item)
 	return cloneWorkflow(item), nil
 }
@@ -267,6 +282,9 @@ func (s *Store) RetryStep(ctx context.Context, id, stepID string) (Workflow, err
 	item.Steps[index].ErrorCode = ""
 	item.Status = Pending
 	item.UpdatedAt = s.now().UTC()
+	if err := s.persistLocked(item); err != nil {
+		return Workflow{}, err
+	}
 	s.items[id] = cloneWorkflow(item)
 	return cloneWorkflow(item), nil
 }
@@ -287,6 +305,9 @@ func (s *Store) Cancel(ctx context.Context, id string) (Workflow, error) {
 	}
 	item.Status = Cancelled
 	item.UpdatedAt = s.now().UTC()
+	if err := s.persistLocked(item); err != nil {
+		return Workflow{}, err
+	}
 	s.items[id] = cloneWorkflow(item)
 	return cloneWorkflow(item), nil
 }

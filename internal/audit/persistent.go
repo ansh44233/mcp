@@ -83,6 +83,10 @@ func NewFileStore(path string, capacity int) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open audit log: %w", err)
 	}
+	if err := file.Chmod(0600); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("secure audit log permissions: %w", err)
+	}
 	store := &Store{capacity: capacity, events: make([]Event, 0, capacity), file: file}
 	if err := store.loadAndVerify(); err != nil {
 		_ = file.Close()

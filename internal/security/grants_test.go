@@ -83,12 +83,12 @@ func TestStaticPrincipalResolverRequiresExplicitLeastPrivilegeScopes(t *testing.
 		},
 		"missing resources": {
 			TenantID: "tenant-a", MaxRisk: tools.RiskRead,
-			AllowedTools: []string{"github_repository_get"},
+			AllowedTools:     []string{"github_repository_get"},
 			AllowedProviders: []string{"github"},
 		},
 		"empty resource list": {
 			TenantID: "tenant-a", MaxRisk: tools.RiskRead,
-			AllowedTools: []string{"github_repository_get"},
+			AllowedTools:     []string{"github_repository_get"},
 			AllowedProviders: []string{"github"},
 			AllowedResources: map[string][]string{"github": {}},
 		},

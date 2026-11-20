@@ -97,7 +97,7 @@ func NewRuntime(token string) *Runtime {
 			panic(fmt.Errorf("register tool %q: %w", definition.ID, err))
 		}
 	}
-	if err := platformtools.RegisterMCPWithAuthorization(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).Authorize); err != nil {
+	if err := platformtools.RegisterMCPWithAuthorization(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).AuthorizeRequest); err != nil {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 

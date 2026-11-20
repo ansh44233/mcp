@@ -38,6 +38,7 @@ type Config struct {
 	Connectors   []ConnectorInfo
 	HealthChecks map[string]func(context.Context) error
 	AuditEvents  func(int) []audit.Event
+	AuditHealth  func() audit.Health
 }
 
 type status struct {
@@ -97,6 +98,13 @@ func HandlerWithConfig(config Config) http.Handler {
 			result = append(result, tool)
 		}
 		writeJSON(w, map[string]any{"tools": result, "count": len(result)})
+	})
+	mux.HandleFunc("GET /api/v1/audit/health", func(w http.ResponseWriter, r *http.Request) {
+		if config.AuditHealth == nil {
+			writeJSON(w, audit.Health{})
+			return
+		}
+		writeJSON(w, config.AuditHealth())
 	})
 	mux.HandleFunc("GET /api/v1/audit", func(w http.ResponseWriter, r *http.Request) {
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))

@@ -2,8 +2,8 @@ package security
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/ansh44233/mcp/internal/tools"
@@ -89,7 +89,7 @@ func resourceID(provider string, arguments json.RawMessage) (string, error) {
 	}
 	var input struct {
 		Owner string `json:"owner"`
-		Repo string `json:"repo"`
+		Repo  string `json:"repo"`
 	}
 	if len(arguments) == 0 || json.Unmarshal(arguments, &input) != nil {
 		return "", fmt.Errorf("cannot determine GitHub resource from tool arguments")

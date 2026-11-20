@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	platformserver "github.com/ansh44233/mcp/internal/server"
+	"github.com/ansh44233/mcp/internal/security"\n\tplatformserver "github.com/ansh44233/mcp/internal/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -43,7 +43,7 @@ func run() int {
 	switch *transport {
 	case "stdio":
 		logger.Info("starting MCP server", "transport", "stdio", "version", platformserver.Version)
-		if err := mcpServer.Run(ctx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) {
+		localCtx := security.WithPrincipal(ctx, security.LocalPrincipal())\n\t\tif err := mcpServer.Run(localCtx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("MCP server stopped", "error", err)
 			return 1
 		}
@@ -57,7 +57,7 @@ func run() int {
 			&mcp.StreamableHTTPOptions{Stateless: true, Logger: logger},
 		)
 		mux := http.NewServeMux()
-		mux.Handle("/mcp", mcpHandler)
+		mux.Handle("/mcp", localPrincipalMiddleware(mcpHandler))
 		mux.Handle("/", runtime.DashboardHandler())
 		httpServer := &http.Server{
 			Addr: *addr, Handler: mux,
@@ -104,3 +104,4 @@ func isLoopbackAddress(address string) bool {
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
+\n// localPrincipalMiddleware marks loopback HTTP requests as the explicit local identity.\n// This is not remote authentication; the listener is separately restricted to loopback.\nfunc localPrincipalMiddleware(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tctx := security.WithPrincipal(r.Context(), security.LocalPrincipal())\n\t\tnext.ServeHTTP(w, r.WithContext(ctx))\n\t})\n}\n

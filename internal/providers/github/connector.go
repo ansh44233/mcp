@@ -3,7 +3,9 @@ package github
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -42,10 +44,17 @@ func (c *Connector) Initialize(_ context.Context, config integrations.Config) er
 	if baseURL == "" {
 		baseURL = defaultAPIBase
 	}
-	if !strings.HasPrefix(baseURL, "https://") &&
-		!strings.HasPrefix(baseURL, "http://127.0.0.1") &&
-		!strings.HasPrefix(baseURL, "http://localhost") {
-		return fmt.Errorf("GitHub API base URL must use HTTPS")
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil || parsedURL.Hostname() == "" || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return fmt.Errorf("GitHub API base URL is invalid")
+	}
+	if parsedURL.Scheme != "https" {
+		host := parsedURL.Hostname()
+		ip := net.ParseIP(host)
+		isLoopback := strings.EqualFold(host, "localhost") || (ip != nil && ip.IsLoopback())
+		if parsedURL.Scheme != "http" || !isLoopback {
+			return fmt.Errorf("GitHub API base URL must use HTTPS except for loopback test servers")
+		}
 	}
 
 	c.client = NewClientWithHTTPClient(baseURL, config["token"], &http.Client{Timeout: 15 * time.Second})

@@ -28,7 +28,7 @@ func TestRegisterMCPWithAuthorizationBlocksExecution(t *testing.T) {
 			return map[string]any{"ok": true}, nil
 		},
 		ReadOnlyPolicy(),
-		func(context.Context, Definition) error {
+		func(context.Context, Definition, json.RawMessage) error {
 			return context.Canceled
 		},
 	); err != nil {

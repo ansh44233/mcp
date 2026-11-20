@@ -24,14 +24,33 @@ const (
 
 var startedAt = time.Now()
 
+// Runtime owns the MCP server and the connector lifecycle manager.
+type Runtime struct {
+	Server *mcp.Server
+	manager *integrations.Manager
+}
+
+// Close gracefully shuts down all managed provider connectors.
+func (r *Runtime) Close(ctx context.Context) error {
+	if r == nil || r.manager == nil {
+		return nil
+	}
+	return r.manager.Close(ctx)
+}
+
 // New constructs the MCP server, built-in tools and configured provider tools.
 func New() *mcp.Server {
-	return NewWithGitHubToken(os.Getenv("GITHUB_TOKEN"))
+	return NewRuntime(os.Getenv("GITHUB_TOKEN")).Server
 }
 
 // NewWithGitHubToken constructs the platform with an optional GitHub token.
-// The token is held only in the connector's in-memory HTTP client.
 func NewWithGitHubToken(token string) *mcp.Server {
+	return NewRuntime(token).Server
+}
+
+// NewRuntime constructs the MCP server and retains ownership of provider lifecycles.
+// The token is held only in the connector's in-memory HTTP client.
+func NewRuntime(token string) *Runtime {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    Name,
 		Version: Version,
@@ -80,7 +99,7 @@ func NewWithGitHubToken(token string) *mcp.Server {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 
-	return s
+	return &Runtime{Server: s, manager: connectorManager}
 }
 
 func githubToolDefinitions() []platformtools.Definition {

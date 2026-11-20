@@ -22,7 +22,7 @@ Until authentication, authorization, tenant isolation and remote transport harde
 - `internal/server.Runtime`: owns the MCP server and connector manager; `Close` shuts down managed connectors with the caller's deadline.
 - `internal/server`: MCP server construction, built-in platform tools, catalog registration and provider tool dispatch.
 - `internal/tools`: provider-neutral tool definitions, risk metadata, schema validation and MCP publication bridge.
-- `internal/execution`: reusable bounded operation runner with concurrency limits, cooperative deadlines, cancellation while waiting for capacity and explicitly idempotent, classifier-gated retries. The server wraps GitHub provider execution with this runner (16 concurrent calls, 20-second operation deadline). Current provider operations have no retry classifier configured, so they are not retried; future retries require explicit transient-error semantics per operation.
+- `internal/execution`: reusable bounded operation runner with concurrency limits, cooperative deadlines, cancellation while waiting for capacity and explicitly idempotent, classifier-gated retries. The server wraps GitHub provider execution with this runner (16 concurrent calls, 20-second global maximum deadline). Trusted server-side policy assigns shorter per-tool deadlines: repository metadata 8 seconds, branch/commit/issue/pull-request lists 12 seconds, file reads 10 seconds and recursive trees 20 seconds. A per-operation value can only shorten, never extend, the runner's global maximum. Current provider operations have no retry classifier configured, so they are not retried; future retries require explicit transient-error semantics per operation.
 - `internal/integrations`: connector lifecycle contract, concurrency-safe registry and serialized manager for initialization, rollback, unregister and graceful shutdown.
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
 - `internal/dashboard`: local operator console, health/status APIs, searchable tool catalog, connector inventory and audit-event APIs.
@@ -83,7 +83,7 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 
 ## Next milestones
 
-1. Add trusted per-tool timeout and idempotency metadata, then benchmark and tune the bounded executor.
+1. Add trusted per-tool idempotency/retry classifications, then benchmark and tune the bounded executor.
 2. Complete production authentication and tenant scope provisioning, add approval policies and durable external audit storage before any write operations or remote HTTP exposure.
 3. Stabilize dashboard API contracts and build the React/TypeScript operator UI.
 4. Add durable workflow orchestration.

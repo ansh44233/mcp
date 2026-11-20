@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"time"
 
-	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
 	"github.com/ansh44233/mcp/internal/integrations"
+	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
 	platformtools "github.com/ansh44233/mcp/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -23,6 +24,12 @@ var startedAt = time.Now()
 
 // New constructs the MCP server, built-in tools and configured provider tools.
 func New() *mcp.Server {
+	return NewWithGitHubToken(os.Getenv("GITHUB_TOKEN"))
+}
+
+// NewWithGitHubToken constructs the platform with an optional GitHub token.
+// The token is held only in the connector's in-memory HTTP client.
+func NewWithGitHubToken(token string) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    Name,
 		Version: Version,
@@ -30,7 +37,7 @@ func New() *mcp.Server {
 
 	githubConnector := githubprovider.NewConnector()
 	if err := githubConnector.Initialize(context.Background(), integrations.Config{
-		"token": "",
+		"token": token,
 	}); err != nil {
 		panic(fmt.Errorf("initialize GitHub connector: %w", err))
 	}
@@ -71,35 +78,46 @@ func New() *mcp.Server {
 func githubToolDefinitions() []platformtools.Definition {
 	const commonSchema = `"owner":{"type":"string","minLength":1},"repo":{"type":"string","minLength":1}`
 	const paginationSchema = `"page":{"type":"integer","minimum":1,"default":1},"per_page":{"type":"integer","minimum":1,"maximum":100,"default":30}`
+
 	return []platformtools.Definition{
 		{
-			ID: "github_repository_get", Provider: "github", Name: "repository_get",
+			ID:          "github_repository_get",
+			Provider:    "github",
+			Name:        "repository_get",
 			Description: "Get GitHub repository metadata. Read-only.",
-			Risk: platformtools.RiskRead,
+			Risk:        platformtools.RiskRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + commonSchema + `},"required":["owner","repo"],"additionalProperties":false}`),
 		},
 		{
-			ID: "github_branches_list", Provider: "github", Name: "branches_list",
+			ID:          "github_branches_list",
+			Provider:    "github",
+			Name:        "branches_list",
 			Description: "List branches in a GitHub repository. Read-only.",
-			Risk: platformtools.RiskRead,
+			Risk:        platformtools.RiskRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + commonSchema + `,` + paginationSchema + `},"required":["owner","repo"],"additionalProperties":false}`),
 		},
 		{
-			ID: "github_commits_list", Provider: "github", Name: "commits_list",
+			ID:          "github_commits_list",
+			Provider:    "github",
+			Name:        "commits_list",
 			Description: "List commits in a GitHub repository. Read-only.",
-			Risk: platformtools.RiskRead,
+			Risk:        platformtools.RiskRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + commonSchema + `,` + paginationSchema + `},"required":["owner","repo"],"additionalProperties":false}`),
 		},
 		{
-			ID: "github_issues_list", Provider: "github", Name: "issues_list",
+			ID:          "github_issues_list",
+			Provider:    "github",
+			Name:        "issues_list",
 			Description: "List issues in a GitHub repository, excluding pull requests. Read-only.",
-			Risk: platformtools.RiskRead,
+			Risk:        platformtools.RiskRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + commonSchema + `,"state":{"type":"string","enum":["open","closed","all"]},` + paginationSchema + `},"required":["owner","repo"],"additionalProperties":false}`),
 		},
 		{
-			ID: "github_pull_requests_list", Provider: "github", Name: "pull_requests_list",
+			ID:          "github_pull_requests_list",
+			Provider:    "github",
+			Name:        "pull_requests_list",
 			Description: "List pull requests in a GitHub repository. Read-only.",
-			Risk: platformtools.RiskRead,
+			Risk:        platformtools.RiskRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + commonSchema + `,"state":{"type":"string","enum":["open","closed","all"]},` + paginationSchema + `},"required":["owner","repo"],"additionalProperties":false}`),
 		},
 	}
@@ -122,6 +140,7 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 		if input.Owner == "" || input.Repo == "" {
 			return nil, fmt.Errorf("owner and repo are required")
 		}
+
 		switch definition.Name {
 		case "repository_get":
 			return client.Repository(ctx, input.Owner, input.Repo)

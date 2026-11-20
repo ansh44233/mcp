@@ -28,10 +28,10 @@ type ConnectorInfo struct {
 }
 
 type Config struct {
-	Version     string
-	Transports  []string
-	Tools       []ToolInfo
-	Connectors  []ConnectorInfo
+	Version    string
+	Transports []string
+	Tools      []ToolInfo
+	Connectors []ConnectorInfo
 }
 
 type status struct {

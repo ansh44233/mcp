@@ -227,4 +227,14 @@ func TestWorkflowHealthEndpointWithoutStore(t *testing.T) {
 			t.Fatalf("unexpected unconfigured workflow health: status=%d body=%s", rec.Code, rec.Body.String())
 		}
 	}
+}func TestWorkflowHealthEndpointWithoutStore(t *testing.T) {
+	rec := httptest.NewRecorder()
+	HandlerWithConfig(testConfig()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/workflows/health", nil))
+	var got workflows.Health
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode workflow health: %v", err)
+	}
+	if rec.Code != http.StatusOK || got.Persistent || got.Healthy {
+		t.Fatalf("unexpected unconfigured workflow health: status=%d health=%+v", rec.Code, got)
+	}
 }

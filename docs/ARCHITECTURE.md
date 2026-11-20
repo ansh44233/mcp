@@ -22,7 +22,7 @@ Until authentication, authorization, tenant isolation and remote transport harde
 - `internal/server.Runtime`: owns the MCP server and connector manager; `Close` shuts down managed connectors with the caller's deadline.
 - `internal/server`: MCP server construction, built-in platform tools, catalog registration and provider tool dispatch.
 - `internal/tools`: provider-neutral tool definitions, risk metadata, schema validation and MCP publication bridge.
-- `internal/execution`: reusable bounded operation runner with concurrency limits, cooperative deadlines, cancellation while waiting for capacity and explicitly idempotent, classifier-gated retries. This package is tested independently but is not yet wired into MCP provider execution.
+- `internal/execution`: reusable bounded operation runner with concurrency limits, cooperative deadlines, cancellation while waiting for capacity and explicitly idempotent, classifier-gated retries. The server wraps GitHub provider execution with this runner (16 concurrent calls, 20-second operation deadline). Current provider operations have no retry classifier configured, so they are not retried; future retries require explicit transient-error semantics per operation.
 - `internal/integrations`: connector lifecycle contract, concurrency-safe registry and serialized manager for initialization, rollback, unregister and graceful shutdown.
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
 - `internal/dashboard`: local operator console, health/status APIs, searchable tool catalog, connector inventory and audit-event APIs.
@@ -78,12 +78,12 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 - HTTP mode is local-only and stateless.
 - No multi-user tenancy, persistent workflow engine, or externally anchored/tamper-resistant audit backend exists.
 - The dashboard is an embedded operator console with a registry-backed tool catalog, connector inventory and audit log; it is not yet the final React/TypeScript management application.
-- The bounded execution runner is unit-tested but not yet integrated into MCP provider execution.
+- The bounded execution runner is integrated into GitHub provider execution, but retry classifications, per-tool tuning and load benchmarks remain future work.
 - CI runs formatting, `go vet` and unit tests; protocol conformance, E2E, security and performance suites are future work.
 
 ## Next milestones
 
-1. Integrate the bounded execution runner into the MCP executor with per-tool trusted timeout and idempotency metadata.
+1. Add trusted per-tool timeout and idempotency metadata, then benchmark and tune the bounded executor.
 2. Complete production authentication and tenant scope provisioning, add approval policies and durable external audit storage before any write operations or remote HTTP exposure.
 3. Stabilize dashboard API contracts and build the React/TypeScript operator UI.
 4. Add durable workflow orchestration.

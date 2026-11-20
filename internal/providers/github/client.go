@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,24 @@ import (
 const (
 	defaultAPIBase  = "https://api.github.com"
 	maxResponseSize = 2 << 20
+	maxFileSize     = 1 << 20
 )
+
+// RateLimitError describes a GitHub API rate-limit response.
+type RateLimitError struct {
+	Message       string
+	RetryAfter    time.Duration
+	Remaining     string
+	ResetAt       time.Time
+	SecondaryLimit bool
+}
+
+func (e *RateLimitError) Error() string {
+	if e.SecondaryLimit {
+		return "GitHub secondary rate limit exceeded: " + e.Message
+	}
+	return "GitHub API rate limit exceeded: " + e.Message
+}
 
 // Client performs bounded, read-only requests to the GitHub REST API.
 type Client struct {
@@ -80,6 +98,31 @@ type PullRequest struct {
 	HTMLURL string `json:"html_url"`
 }
 
+type FileContent struct {
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	SHA         string `json:"sha"`
+	Size        int    `json:"size"`
+	HTMLURL     string `json:"html_url"`
+	Content     string `json:"content"`
+	Encoding    string `json:"encoding"`
+	DecodedText string `json:"decoded_text"`
+}
+
+type TreeEntry struct {
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+	Type string `json:"type"`
+	SHA  string `json:"sha"`
+	Size int64  `json:"size,omitempty"`
+}
+
+type GitTree struct {
+	SHA       string      `json:"sha"`
+	Truncated bool        `json:"truncated"`
+	Tree      []TreeEntry `json:"tree"`
+}
+
 func (c *Client) Repository(ctx context.Context, owner, repo string) (Repository, error) {
 	var result Repository
 	err := c.get(ctx, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo), nil, &result)
@@ -141,6 +184,59 @@ func (c *Client) PullRequests(ctx context.Context, owner, repo, state string, pa
 	return result, err
 }
 
+// Contents retrieves a single text file from a repository. Binary files and
+// files larger than maxFileSize are rejected rather than returned as text.
+func (c *Client) Contents(ctx context.Context, owner, repo, path, ref string) (FileContent, error) {
+	var result FileContent
+	if strings.TrimSpace(path) == "" {
+		return result, fmt.Errorf("file path is required")
+	}
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	escaped := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		if segment == "" || segment == "." || segment == ".." {
+			return result, fmt.Errorf("invalid file path")
+		}
+		escaped = append(escaped, url.PathEscape(segment))
+	}
+	query := url.Values{}
+	if ref != "" {
+		query.Set("ref", ref)
+	}
+	endpoint := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/contents/" + strings.Join(escaped, "/")
+	if err := c.get(ctx, endpoint, query, &result); err != nil {
+		return result, err
+	}
+	if result.Size > maxFileSize {
+		return result, fmt.Errorf("file exceeds %d byte limit", maxFileSize)
+	}
+	if result.Encoding != "base64" {
+		return result, fmt.Errorf("unsupported GitHub file encoding %q", result.Encoding)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(result.Content, "\n", ""))
+	if err != nil {
+		return result, fmt.Errorf("decode GitHub file content: %w", err)
+	}
+	if len(decoded) > maxFileSize {
+		return result, fmt.Errorf("decoded file exceeds %d byte limit", maxFileSize)
+	}
+	result.DecodedText = string(decoded)
+	result.Content = ""
+	return result, nil
+}
+
+// Tree lists repository tree entries. GitHub may mark very large recursive
+// trees as truncated; callers must inspect the Truncated field.
+func (c *Client) Tree(ctx context.Context, owner, repo, ref string) (GitTree, error) {
+	var result GitTree
+	if strings.TrimSpace(ref) == "" {
+		return result, fmt.Errorf("tree ref is required")
+	}
+	query := url.Values{"recursive": {"1"}}
+	err := c.get(ctx, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo)+"/git/trees/"+url.PathEscape(ref), query, &result)
+	return result, err
+}
+
 func pagination(page, perPage int) url.Values {
 	if page < 1 {
 		page = 1
@@ -188,6 +284,20 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, output 
 	}
 	if len(body) > maxResponseSize {
 		return fmt.Errorf("GitHub response exceeds %d bytes", maxResponseSize)
+	}
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		remaining := resp.Header.Get("X-RateLimit-Remaining")
+		if remaining == "0" || resp.Header.Get("Retry-After") != "" || strings.Contains(strings.ToLower(string(body)), "rate limit") {
+			retryAfter, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
+			resetUnix, _ := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64)
+			return &RateLimitError{
+				Message:        strings.TrimSpace(string(body)),
+				RetryAfter:     time.Duration(retryAfter) * time.Second,
+				Remaining:      remaining,
+				ResetAt:        time.Unix(resetUnix, 0),
+				SecondaryLimit: remaining != "0",
+			}
+		}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		message := strings.TrimSpace(string(body))

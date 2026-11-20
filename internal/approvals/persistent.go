@@ -252,5 +252,5 @@ func (s *Store) Health() Health {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Health{Persistent: s.file != nil, Healthy: s.lastError == nil, Requests: len(s.requests), Sequence: s.next}
+	return Health{Persistent: s.file != nil, Healthy: s.lastError == nil && !s.closed, Requests: len(s.requests), Sequence: s.next}
 }

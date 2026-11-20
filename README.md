@@ -23,6 +23,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Read-only `platform_status` MCP tool with structured output.
 - Provider-neutral tool catalog with stable IDs, provider metadata, risk classification and JSON input-schema validation.
 - Catalog-to-MCP bridge: registered definitions are discoverable and invokable through the official SDK.
+- Execution-time risk policy: the default runtime permits read tools only, supports an explicit tool allowlist and rejects write/destructive or unknown-risk tools before the executor runs.
 - Initial GitHub read-only connector using the GitHub REST API:
   - Repository metadata
   - Branch listing

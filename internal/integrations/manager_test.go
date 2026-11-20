@@ -7,30 +7,40 @@ import (
 )
 
 type lifecycleConnector struct {
-	meta       Metadata
-	initErr    error
+	meta        Metadata
+	initErr     error
 	shutdownErr error
 	initialized bool
 	shutdowns   int
 }
 
 func (c *lifecycleConnector) Metadata() Metadata { return c.meta }
+
 func (c *lifecycleConnector) Initialize(_ context.Context, _ Config) error {
-	if c.initErr != nil { return c.initErr }
+	if c.initErr != nil {
+		return c.initErr
+	}
 	c.initialized = true
 	return nil
 }
+
 func (c *lifecycleConnector) HealthCheck(context.Context) error { return nil }
+
 func (c *lifecycleConnector) Operations() []Operation { return nil }
+
 func (c *lifecycleConnector) Shutdown(context.Context) error {
 	c.shutdowns++
-	if c.shutdownErr != nil { return c.shutdownErr }
+	if c.shutdownErr != nil {
+		return c.shutdownErr
+	}
 	c.initialized = false
 	return nil
 }
 
 func newLifecycleConnector(id string) *lifecycleConnector {
-	return &lifecycleConnector{meta: Metadata{ID: id, Name: id, Version: "1.0.0"}}
+	return &lifecycleConnector{
+		meta: Metadata{ID: id, Name: id, Version: "1.0.0"},
+	}
 }
 
 func TestManagerInitializesBeforePublishing(t *testing.T) {
@@ -51,7 +61,9 @@ func TestManagerInitializesBeforePublishing(t *testing.T) {
 func TestManagerRollsBackFailedRegistration(t *testing.T) {
 	registry := NewRegistry()
 	existing := newLifecycleConnector("github")
-	if err := registry.Register(existing); err != nil { t.Fatal(err) }
+	if err := registry.Register(existing); err != nil {
+		t.Fatal(err)
+	}
 	manager := NewManager(registry)
 	duplicate := newLifecycleConnector("github")
 	if err := manager.Register(context.Background(), duplicate, nil); err == nil {
@@ -82,8 +94,12 @@ func TestManagerUnregisterShutsDownBeforeRemoval(t *testing.T) {
 	registry := NewRegistry()
 	manager := NewManager(registry)
 	connector := newLifecycleConnector("github")
-	if err := manager.Register(context.Background(), connector, nil); err != nil { t.Fatal(err) }
-	if err := manager.Unregister(context.Background(), "github"); err != nil { t.Fatal(err) }
+	if err := manager.Register(context.Background(), connector, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Unregister(context.Background(), "github"); err != nil {
+		t.Fatal(err)
+	}
 	if connector.initialized || connector.shutdowns != 1 {
 		t.Fatalf("connector was not shut down: %+v", connector)
 	}
@@ -98,8 +114,12 @@ func TestManagerCloseAttemptsAllAndCanRetry(t *testing.T) {
 	first := newLifecycleConnector("alpha")
 	second := newLifecycleConnector("beta")
 	second.shutdownErr = errors.New("temporary shutdown failure")
-	if err := manager.Register(context.Background(), first, nil); err != nil { t.Fatal(err) }
-	if err := manager.Register(context.Background(), second, nil); err != nil { t.Fatal(err) }
+	if err := manager.Register(context.Background(), first, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Register(context.Background(), second, nil); err != nil {
+		t.Fatal(err)
+	}
 	if err := manager.Close(context.Background()); err == nil {
 		t.Fatal("expected shutdown error")
 	}
@@ -110,7 +130,9 @@ func TestManagerCloseAttemptsAllAndCanRetry(t *testing.T) {
 		t.Fatal("connector with failed shutdown was removed")
 	}
 	second.shutdownErr = nil
-	if err := manager.Close(context.Background()); err != nil { t.Fatal(err) }
+	if err := manager.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if len(registry.List()) != 0 {
 		t.Fatal("registry not empty after successful close")
 	}

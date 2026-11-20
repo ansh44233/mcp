@@ -23,7 +23,7 @@ jobs:
           cache: true
       - name: Check formatting
         run: |
-          gofmt -d ./cmd ./internal
+          test -z "$(gofmt -l ./cmd ./internal)"
       - name: Resolve dependencies
         run: go mod tidy
       - name: Vet

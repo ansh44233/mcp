@@ -247,6 +247,30 @@ func (s *Store) List(limit int) []Event {
 	return result
 }
 
+// ListForTenant returns newest-first events belonging only to tenantID.
+// Filtering occurs before applying the limit so busy tenants cannot hide a
+// quieter tenant's recent events.
+func (s *Store) ListForTenant(tenantID string, limit int) []Event {
+	if s == nil || tenantID == "" {
+		return []Event{}
+	}
+	if limit < 1 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]Event, 0, limit)
+	for i := len(s.events) - 1; i >= 0 && len(result) < limit; i-- {
+		if s.events[i].TenantID == tenantID {
+			result = append(result, s.events[i])
+		}
+	}
+	return result
+}
+
 // Close flushes and closes the persistent log, if configured.
 func (s *Store) Close() error {
 	if s == nil {

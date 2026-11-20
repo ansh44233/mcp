@@ -95,6 +95,14 @@ func NewStaticPrincipalResolver(grants map[string]PrincipalGrant) (PrincipalReso
 			return nil, fmt.Errorf("principal %q must define tool, provider and resource scopes", subject)
 		}
 
+		allowedTools, err := strictScopeSet(grant.AllowedTools, "tool")
+		if err != nil {
+			return nil, fmt.Errorf("principal %q: %w", subject, err)
+		}
+		allowedProviders, err := strictScopeSet(grant.AllowedProviders, "provider")
+		if err != nil {
+			return nil, fmt.Errorf("principal %q: %w", subject, err)
+		}
 		principal := Principal{
 			ID:               subject,
 			TenantID:         grant.TenantID,
@@ -102,15 +110,29 @@ func NewStaticPrincipalResolver(grants map[string]PrincipalGrant) (PrincipalReso
 			Authentication:   "bearer",
 			MaxRisk:          grant.MaxRisk,
 			CanApprove:       grant.CanApprove,
-			AllowedTools:     stringSet(grant.AllowedTools),
-			AllowedProviders: stringSet(grant.AllowedProviders),
+			AllowedTools:     allowedTools,
+			AllowedProviders: allowedProviders,
 			AllowedResources: make(map[string]map[string]struct{}, len(grant.AllowedResources)),
 		}
 		for provider, resources := range grant.AllowedResources {
-			if strings.TrimSpace(provider) == "" || len(resources) == 0 {
-				return nil, fmt.Errorf("principal %q has an empty resource scope for provider %q", subject, provider)
+			if strings.TrimSpace(provider) == "" || provider != strings.TrimSpace(provider) || len(resources) == 0 {
+				return nil, fmt.Errorf("principal %q has an invalid resource scope for provider %q", subject, provider)
 			}
-			principal.AllowedResources[provider] = stringSet(resources)
+			if _, ok := allowedProviders[provider]; !ok {
+				return nil, fmt.Errorf("principal %q has resource scopes for provider %q without allowing that provider", subject, provider)
+			}
+			resourceSet, err := strictScopeSet(resources, "resource")
+			if err != nil {
+				return nil, fmt.Errorf("principal %q provider %q: %w", subject, provider, err)
+			}
+			if provider == "github" {
+				canonical := make(map[string]struct{}, len(resourceSet))
+				for resource := range resourceSet {
+					canonical[strings.ToLower(resource)] = struct{}{}
+				}
+				resourceSet = canonical
+			}
+			principal.AllowedResources[provider] = resourceSet
 		}
 		if err := principal.Validate(); err != nil {
 			return nil, fmt.Errorf("principal %q is invalid: %w", subject, err)
@@ -133,10 +155,20 @@ func NewStaticPrincipalResolver(grants map[string]PrincipalGrant) (PrincipalReso
 	}, nil
 }
 
-func stringSet(values []string) map[string]struct{} {
+func strictScopeSet(values []string, kind string) (map[string]struct{}, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("at least one %s scope is required", kind)
+	}
 	set := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		set[strings.TrimSpace(value)] = struct{}{}
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" || trimmed != value {
+			return nil, fmt.Errorf("%s scopes must be non-empty and have no surrounding whitespace", kind)
+		}
+		if _, exists := set[trimmed]; exists {
+			return nil, fmt.Errorf("duplicate %s scope %q", kind, trimmed)
+		}
+		set[trimmed] = struct{}{}
 	}
-	return set
+	return set, nil
 }

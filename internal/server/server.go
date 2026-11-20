@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/ansh44233/mcp/internal/dashboard"
 	"github.com/ansh44233/mcp/internal/integrations"
 	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
 	platformtools "github.com/ansh44233/mcp/internal/tools"
@@ -178,4 +180,41 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 			return nil, fmt.Errorf("unsupported GitHub operation %q", definition.Name)
 		}
 	}
+}
+
+ 
+// DashboardHandler exposes metadata from the same definitions used by the MCP runtime.
+func DashboardHandler() http.Handler {
+	connector := githubprovider.NewConnector()
+	metadata := connector.Metadata()
+	operations := connector.Operations()
+	operationNames := make([]string, 0, len(operations))
+	readOnly := true
+	for _, operation := range operations {
+		operationNames = append(operationNames, operation.ID)
+		if !operation.ReadOnly {
+			readOnly = false
+		}
+	}
+	definitions := githubToolDefinitions()
+	toolInfos := make([]dashboard.ToolInfo, 0, len(definitions)+1)
+	toolInfos = append(toolInfos, dashboard.ToolInfo{
+		ID: "platform_status", Provider: "platform", Name: "status",
+		Description: "Return server version, uptime and runtime capabilities.", Risk: "read",
+	})
+	for _, definition := range definitions {
+		toolInfos = append(toolInfos, dashboard.ToolInfo{
+			ID: definition.ID, Provider: definition.Provider, Name: definition.Name,
+			Description: definition.Description, Risk: string(definition.Risk),
+		})
+	}
+	return dashboard.HandlerWithConfig(dashboard.Config{
+		Version: Version,
+		Transports: []string{"stdio", "streamable-http"},
+		Tools: toolInfos,
+		Connectors: []dashboard.ConnectorInfo{{
+			ID: metadata.ID, Name: metadata.Name, Version: metadata.Version,
+			Description: metadata.Description, Operations: operationNames, ReadOnly: readOnly,
+		}},
+	})
 }

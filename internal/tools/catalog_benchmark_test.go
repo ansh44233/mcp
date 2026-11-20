@@ -14,9 +14,12 @@ func benchmarkRegistry(b *testing.B, size int) (*Registry, string) {
 	for i := 0; i < size; i++ {
 		id := fmt.Sprintf("bench_tool_%05d", i)
 		if err := registry.Register(Definition{
-			ID: id, Provider: "benchmark", Name: "Benchmark tool",
+			ID:          id,
+			Provider:    "benchmark",
+			Name:        "Benchmark tool",
 			Description: "Synthetic definition for catalog benchmarks.",
-			Risk: RiskRead, InputSchema: schema,
+			Risk:        RiskRead,
+			InputSchema: schema,
 		}); err != nil {
 			b.Fatal(err)
 		}

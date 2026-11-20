@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -59,5 +60,25 @@ func TestDiscoverOIDCAuthorizationEndpointsRejectsUntrustedMetadata(t *testing.T
 				t.Fatal("expected untrusted or incomplete endpoint metadata to be rejected")
 			}
 		})
+	}
+}
+
+
+func TestValidateOIDCEndpointRequiresExactIssuerOrigin(t *testing.T) {
+	issuer, err := url.Parse("https://issuer.example:8443")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []string{
+		"https://issuer.example:9443/token",
+		"https://attacker.example:8443/token",
+		"http://issuer.example:8443/token",
+	} {
+		if _, err := validateOIDCEndpoint(endpoint, issuer, "token"); err == nil {
+			t.Fatalf("expected endpoint %q to be rejected", endpoint)
+		}
+	}
+	if got, err := validateOIDCEndpoint("https://issuer.example:8443/token", issuer, "token"); err != nil || got != "https://issuer.example:8443/token" {
+		t.Fatalf("expected exact issuer origin to pass, got %q, %v", got, err)
 	}
 }

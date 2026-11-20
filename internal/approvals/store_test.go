@@ -184,6 +184,31 @@ func TestListIsTenantScopedNewestFirstAndExpiresPending(t *testing.T) {
 	}
 }
 
+func TestApprovalInspectionRequiresAuthenticatedPrincipal(t *testing.T) {
+	store := NewStore(10)
+	request, err := store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{"x":1}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	local := security.WithPrincipal(context.Background(), security.LocalPrincipal())
+	if _, err := store.List(local, 10); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("local unauthenticated principal must not list approvals: %v", err)
+	}
+	if _, err := store.Get(local, request.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("local unauthenticated principal must not inspect approval: %v", err)
+	}
+	if _, err := store.List(principal("mallory", "tenant-b", true), 10); err != nil {
+		t.Fatalf("authenticated other tenant should receive an empty list: %v", err)
+	}
+	if _, err := store.Get(principal("mallory", "tenant-b", true), request.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-tenant request should remain hidden: %v", err)
+	}
+	if got, err := store.Get(principal("alice", "tenant-a", true), request.ID); err != nil || got.ID != request.ID {
+		t.Fatalf("authenticated owner should inspect request: %+v %v", got, err)
+	}
+}
+
 func TestFileStoreRecoversApprovalTransitions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "approvals.jsonl")
 	store, err := NewFileStore(path, 10)

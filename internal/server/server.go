@@ -349,6 +349,7 @@ func (r *Runtime) DashboardHandlerWithStaticDir(staticDir string) http.Handler {
 			return r.workflows.Health()
 		},
 		ApprovalHealth: func() approvals.Health { return r.approvals.Health() },
+		ApprovalStore:  r.approvals,
 		StaticDir:      staticDir,
 	})
 }

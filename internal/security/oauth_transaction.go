@@ -11,28 +11,28 @@ import (
 var ErrOAuthTransactionNotFound = errors.New("OAuth transaction not found")
 
 const (
-	oauthStateBytes = 32
-	oauthNonceBytes = 32
+	oauthStateBytes   = 32
+	oauthNonceBytes   = 32
 	pkceVerifierBytes = 32
 )
 
 // OAuthTransaction holds short-lived, single-use authorization-flow secrets.
 // It must remain server-side and must never be serialized into browser output.
 type OAuthTransaction struct {
-	State string
-	Nonce string
-	CodeVerifier string
+	State         string
+	Nonce         string
+	CodeVerifier  string
 	CodeChallenge string
-	ExpiresAt time.Time
+	ExpiresAt     time.Time
 }
 
 // OAuthTransactionStore is a bounded, process-local store for login transactions.
 type OAuthTransactionStore struct {
-	mu sync.Mutex
+	mu           sync.Mutex
 	transactions map[string]OAuthTransaction
-	max int
-	ttl time.Duration
-	now func() time.Time
+	max          int
+	ttl          time.Duration
+	now          func() time.Time
 }
 
 // NewOAuthTransactionStore creates a bounded store with a positive lifetime.
@@ -42,9 +42,9 @@ func NewOAuthTransactionStore(max int, ttl time.Duration) (*OAuthTransactionStor
 	}
 	return &OAuthTransactionStore{
 		transactions: make(map[string]OAuthTransaction),
-		max: max,
-		ttl: ttl,
-		now: time.Now,
+		max:          max,
+		ttl:          ttl,
+		now:          time.Now,
 	}, nil
 }
 
@@ -67,11 +67,11 @@ func (s *OAuthTransactionStore) Create() (OAuthTransaction, error) {
 	}
 	challengeDigest := sha256.Sum256([]byte(verifier))
 	transaction := OAuthTransaction{
-		State: state,
-		Nonce: nonce,
-		CodeVerifier: verifier,
+		State:         state,
+		Nonce:         nonce,
+		CodeVerifier:  verifier,
 		CodeChallenge: base64.RawURLEncoding.EncodeToString(challengeDigest[:]),
-		ExpiresAt: s.now().Add(s.ttl),
+		ExpiresAt:     s.now().Add(s.ttl),
 	}
 
 	s.mu.Lock()

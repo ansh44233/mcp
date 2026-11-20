@@ -12,7 +12,7 @@ import (
 
 	"github.com/ansh44233/mcp/internal/dashboard"
 	"github.com/ansh44233/mcp/internal/integrations"
-	githubprovider "github.com/ansh44233/mcp/internal/providers/github"
+	githubprovider "github.com/ansh44233/mcp/internal/providers/github"\n\t"github.com/ansh44233/mcp/internal/security"
 	platformtools "github.com/ansh44233/mcp/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -96,7 +96,7 @@ func NewRuntime(token string) *Runtime {
 			panic(fmt.Errorf("register tool %q: %w", definition.ID, err))
 		}
 	}
-	if err := platformtools.RegisterMCPWithPolicy(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy()); err != nil {
+	if err := platformtools.RegisterMCPWithAuthorization(s, catalog, githubExecutor(githubClient), platformtools.ReadOnlyPolicy(), (security.Authorizer{AllowLocalPrincipal: true}).Authorize); err != nil {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 

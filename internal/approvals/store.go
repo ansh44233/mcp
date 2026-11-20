@@ -85,7 +85,9 @@ func (s *Store) Create(ctx context.Context, definition tools.Definition, argumen
 		return Request{}, fmt.Errorf("approval TTL must be between 1ns and 24h")
 	}
 	id, err := s.newID()
-	if err != nil { return Request{}, fmt.Errorf("generate approval ID: %w", err) }
+	if err != nil {
+		return Request{}, fmt.Errorf("generate approval ID: %w", err)
+	}
 	now := s.now().UTC()
 	sum := sha256.Sum256(arguments)
 	request := Request{
@@ -96,8 +98,12 @@ func (s *Store) Create(ctx context.Context, definition tools.Definition, argumen
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.requests) >= s.maxItems { return Request{}, fmt.Errorf("approval store capacity reached") }
-	if _, exists := s.requests[id]; exists { return Request{}, fmt.Errorf("approval ID collision") }
+	if len(s.requests) >= s.maxItems {
+		return Request{}, fmt.Errorf("approval store capacity reached")
+	}
+	if _, exists := s.requests[id]; exists {
+		return Request{}, fmt.Errorf("approval ID collision")
+	}
 	s.requests[id] = request
 	return request, nil
 }

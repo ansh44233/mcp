@@ -14,6 +14,7 @@ type Principal struct {
 	ID               string
 	TenantID         string
 	Authenticated    bool
+	CanApprove       bool // Explicit permission to review and decide approval requests.
 	Authentication   string
 	MaxRisk          tools.Risk
 	AllowedTools     map[string]struct{}

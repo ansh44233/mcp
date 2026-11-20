@@ -37,10 +37,10 @@ type ConnectorInfo struct {
 }
 
 type Config struct {
-	Version      string
-	Transports   []string
-	Tools        []ToolInfo
-	Connectors   []ConnectorInfo
+	Version        string
+	Transports     []string
+	Tools          []ToolInfo
+	Connectors     []ConnectorInfo
 	HealthChecks   map[string]func(context.Context) error
 	AuditEvents    func(int) []audit.Event
 	AuditHealth    func() audit.Health

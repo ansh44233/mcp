@@ -80,10 +80,10 @@ func TestRegisterMCPRejectsMissingDependencies(t *testing.T) {
 		return nil, nil
 	})
 	tests := []struct {
-		name      string
-		server    *mcp.Server
-		registry  *Registry
-		executor  Executor
+		name     string
+		server   *mcp.Server
+		registry *Registry
+		executor Executor
 	}{
 		{
 			name:     "nil server",

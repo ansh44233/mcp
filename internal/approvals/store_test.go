@@ -209,6 +209,37 @@ func TestApprovalInspectionRequiresAuthenticatedPrincipal(t *testing.T) {
 	}
 }
 
+func TestApprovalInspectionIsOwnerOrReviewerScoped(t *testing.T) {
+	store := NewStore(10)
+	first, err := store.Create(principal("alice", "tenant-a", true), writeTool(), json.RawMessage(`{"x":1}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.Create(principal("carol", "tenant-a", true), writeTool(), json.RawMessage(`{"x":2}`), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ownerList, err := store.List(principal("alice", "tenant-a", true), 10)
+	if err != nil || len(ownerList) != 1 || ownerList[0].ID != first.ID {
+		t.Fatalf("requester should only list own requests: %+v %v", ownerList, err)
+	}
+	if _, err := store.Get(principal("alice", "tenant-a", true), second.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("requester must not inspect another requester's request: %v", err)
+	}
+
+	reviewerList, err := store.List(approver("reviewer", "tenant-a"), 10)
+	if err != nil || len(reviewerList) != 2 {
+		t.Fatalf("authorized reviewer should list tenant requests: %+v %v", reviewerList, err)
+	}
+	if got, err := store.Get(approver("reviewer", "tenant-a"), second.ID); err != nil || got.ID != second.ID {
+		t.Fatalf("authorized reviewer should inspect tenant request: %+v %v", got, err)
+	}
+	if _, err := store.Get(approver("reviewer", "tenant-b"), second.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("reviewer must not cross tenant boundary: %v", err)
+	}
+}
+
 func TestFileStoreRecoversApprovalTransitions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "approvals.jsonl")
 	store, err := NewFileStore(path, 10)

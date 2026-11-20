@@ -10,7 +10,7 @@ import (
 
 func testConfig() Config {
 	return Config{
-		Version: "0.1.0",
+		Version:    "0.1.0",
 		Transports: []string{"stdio", "streamable-http"},
 		Connectors: []ConnectorInfo{{
 			ID: "github", Name: "GitHub", Version: "0.1.0",

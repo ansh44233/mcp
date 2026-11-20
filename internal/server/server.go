@@ -182,7 +182,6 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 	}
 }
 
- 
 // DashboardHandler exposes metadata from the same definitions used by the MCP runtime.
 func DashboardHandler() http.Handler {
 	connector := githubprovider.NewConnector()

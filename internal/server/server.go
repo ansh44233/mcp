@@ -26,7 +26,7 @@ var startedAt = time.Now()
 
 // Runtime owns the MCP server and the connector lifecycle manager.
 type Runtime struct {
-	Server *mcp.Server
+	Server  *mcp.Server
 	manager *integrations.Manager
 }
 

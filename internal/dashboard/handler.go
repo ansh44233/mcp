@@ -17,6 +17,7 @@ import (
 
 	"github.com/ansh44233/mcp/internal/approvals"
 	"github.com/ansh44233/mcp/internal/audit"
+	"github.com/ansh44233/mcp/internal/security"
 	"github.com/ansh44233/mcp/internal/workflows"
 )
 
@@ -46,6 +47,8 @@ type Config struct {
 	Connectors     []ConnectorInfo
 	HealthChecks   map[string]func(context.Context) error
 	AuditEvents    func(int) []audit.Event
+	AuditEventsForTenant func(string, int) []audit.Event
+	RequirePrincipal bool
 	AuditHealth    func() audit.Health
 	WorkflowHealth func() workflows.Health
 	ApprovalHealth func() approvals.Health
@@ -205,7 +208,19 @@ func HandlerWithConfig(config Config) http.Handler {
 			writeJSON(w, map[string]any{"events": []audit.Event{}, "count": 0})
 			return
 		}
-		events := config.AuditEvents(limit)
+		var events []audit.Event
+		if principal, ok := security.PrincipalFromContext(r.Context()); ok {
+			if config.AuditEventsForTenant != nil {
+				events = config.AuditEventsForTenant(principal.TenantID, limit)
+			} else if principal.TenantID == "local" && config.AuditEvents != nil {
+				events = config.AuditEvents(limit)
+			}
+		} else if !config.RequirePrincipal && config.AuditEvents != nil {
+			events = config.AuditEvents(limit)
+		}
+		if events == nil {
+			events = []audit.Event{}
+		}
 		writeJSON(w, map[string]any{"events": events, "count": len(events)})
 	})
 	mux.HandleFunc("GET /api/v1/connectors", func(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +256,21 @@ func HandlerWithConfig(config Config) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write([]byte(indexHTML))
 	})
-	return mux
+	if !config.RequirePrincipal {
+		return mux
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			principal, ok := security.PrincipalFromContext(r.Context())
+			local := ok && !principal.Authenticated && principal.ID == "local" &&
+				principal.TenantID == "local" && principal.Authentication == "local"
+			if !ok || (!principal.Authenticated && !local) {
+				http.Error(w, "authenticated principal required", http.StatusUnauthorized)
+				return
+			}
+		}
+		mux.ServeHTTP(w, r)
+	})
 }
 
 func writeApprovalError(w http.ResponseWriter, err error) {

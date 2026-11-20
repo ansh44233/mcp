@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
+	"time"
+
+	"github.com/ansh44233/mcp/internal/tools"
 )
 
 const maxApprovalLine = 1 << 20

@@ -87,6 +87,9 @@ func riskRank(risk tools.Risk) int {
 }
 
 func resourceID(provider string, arguments json.RawMessage) (string, error) {
+	if provider == "platform" {
+		return "platform", nil
+	}
 	if provider != "github" {
 		return "", fmt.Errorf("resource scoping is not implemented for provider %q", provider)
 	}

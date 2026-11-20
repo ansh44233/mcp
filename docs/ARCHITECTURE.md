@@ -27,7 +27,7 @@ HTTP binding is restricted to loopback addresses. The production runtime does no
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
 - `internal/dashboard`: dashboard API, local operator console fallback and static React application serving. The API exposes health/status, tool and connector inventory, connector health checks, audit events and audit integrity status.
 - `dashboard/`: independently built React/TypeScript operator UI, with live runtime status, connector inventory, searchable tool catalog, health-check actions and audit visibility. Build with `npm install` and `npm run build`; the Go server serves `dashboard/dist` by default in HTTP mode and falls back to its embedded console if the build is absent.
-- `internal/workflows`: in-memory tenant-scoped workflow state machine with ordered step checkpoints, owner-only mutations, explicit retry and cancellation. It coordinates metadata only; it does not execute tools and is not yet durable or connected to runtime orchestration.
+- `internal/workflows`: tenant-scoped workflow state machine with ordered step checkpoints, owner-only mutations, explicit retry and cancellation. It supports an optional append-only JSONL journal with hash-chain verification, fsynced transitions and crash recovery. A step interrupted while running is marked failed with `interrupted_after_restart` and is never automatically replayed. It coordinates metadata only; it does not execute tools and is not yet connected to runtime orchestration.
 - `internal/approvals`: tenant-scoped, single-use approval requests bound to exact tool argument digests. Decisions require an authenticated principal with explicit `CanApprove` permission, a different requester identity, matching tenant and sufficient risk/tool/provider scope. The store supports bounded tenant-scoped listing and optional append-only JSONL persistence through `NewFileStore`. It is not yet wired into runtime write-tool execution.
 - `internal/security`: principal validation, fail-closed tool/provider/risk/resource authorization and a bearer middleware adapter that requires a host-supplied token verifier and trusted principal resolver.
 - `internal/audit`: bounded, concurrency-safe event store with optional append-only JSONL persistence, SHA-256 hash chaining and startup verification. Events contain actor/tenant IDs, tool/provider/risk metadata, outcome and duration, but never raw arguments or credentials.
@@ -53,7 +53,7 @@ An execution observer records `denied`, `failed`, `succeeded` and invalid-reques
 
 The approvals package supports an optional append-only JSONL journal through `approvals.NewFileStore(path, capacity)`. Create, decision, expiry and consumption transitions are synchronously appended and fsynced before the new state is published in memory. Startup verifies sequence numbers, previous-record links, SHA-256 record hashes, request metadata and allowed state transitions; malformed or tampered history fails closed. Journal directories are created with restrictive permissions and the file is set to mode `0600`. Records contain only the SHA-256 digest of tool arguments, never raw arguments or credentials. A failed append poisons the store and prevents further state transitions.
 
-This is local-file durability, not protection against a privileged attacker who can rewrite the complete journal and recompute its hash chain. The approval store is currently an isolated package capability: it is not configured in the production runtime, exposed through the dashboard or connected to write-tool execution. The workflow package is also an isolated in-memory state machine; it has no durable journal, worker scheduler, execution adapter or runtime/dashboard integration.
+This is local-file durability, not protection against a privileged attacker who can rewrite the complete journal and recompute its hash chain. The approval store is currently an isolated package capability: it is not configured in the production runtime, exposed through the dashboard or connected to write-tool execution. The workflow package is still isolated from the production runtime and dashboard; it has no worker scheduler or execution adapter. Its optional local journal is not externally anchored and cannot prevent a privileged attacker from rewriting the entire chain.
 
 ## Intended component boundaries
 
@@ -88,14 +88,14 @@ Connectors declare stable IDs, metadata, configuration, health checks, operation
 - The bearer middleware adapter requires a host-supplied verifier and principal resolver and is not wired into the production request path.
 - The connector lifecycle contract and registry exist, but dynamic runtime installation and management are not implemented.
 - HTTP mode is local-only and stateless.
-- No multi-user tenancy, durable workflow engine, worker scheduler or externally anchored/tamper-resistant audit backend exists.
+- No multi-user tenancy, workflow worker scheduler, execution adapter or externally anchored/tamper-resistant audit backend exists. Workflow persistence is optional local JSONL storage, not a complete distributed workflow engine.
 - The React dashboard provides runtime status, connector inventory, tool discovery, health checks and audit visibility; connector configuration, session/workflow/approval management and security administration remain future work.
 - The execution runner is integrated into GitHub provider execution, but automatic retries are not enabled for current operations and load benchmarks have not yet been measured.
 - CI runs formatting, `go vet` and unit tests. Protocol conformance, end-to-end, security and performance suites remain future work.
 
 ## Next milestones
 
-1. Add durable workflow checkpoints, crash recovery, bounded workers and an execution adapter around the existing tool runner.
+1. Connect the durable workflow store to runtime configuration, then add bounded workers and a safe execution adapter around the existing tool runner.
 2. Complete production authentication and tenant scope provisioning, then connect approval policy to write execution before adding any write tools or remote HTTP exposure.
 3. Extend dashboard APIs and UI for secure workflow and approval operations.
 4. Add further provider connectors behind the provider-neutral contracts.

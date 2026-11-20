@@ -15,7 +15,7 @@ func testConfig() Config {
 		Connectors: []ConnectorInfo{{
 			ID: "github", Name: "GitHub", Version: "0.1.0",
 			Description: "Read-only repository access",
-			Operations: []string{"repository_get", "file_get"}, ReadOnly: true,
+			Operations:  []string{"repository_get", "file_get"}, ReadOnly: true,
 		}},
 		Tools: []ToolInfo{
 			{ID: "platform_status", Provider: "platform", Name: "status", Description: "Platform status", Risk: "read"},

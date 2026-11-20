@@ -106,7 +106,7 @@ func TestConcurrentConsumeOnlySucceedsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Decide(principal("bob", "tenant-a", true), request.ID, true, "ok"); err != nil {
+	if _, err := store.Decide(approver("bob", "tenant-a"), request.ID, true, "ok"); err != nil {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup

@@ -36,10 +36,19 @@ type Runtime struct {
 
 // Close gracefully shuts down all managed provider connectors.
 func (r *Runtime) Close(ctx context.Context) error {
-	if r == nil || r.manager == nil {
+	if r == nil {
 		return nil
 	}
-	return r.manager.Close(ctx)
+	var firstErr error
+	if r.manager != nil {
+		firstErr = r.manager.Close(ctx)
+	}
+	if r.audit != nil {
+		if err := r.audit.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // New constructs the MCP server, built-in tools and configured provider tools.
@@ -55,12 +64,25 @@ func NewWithGitHubToken(token string) *mcp.Server {
 // NewRuntime constructs the MCP server and retains ownership of provider lifecycles.
 // The token is held only in the connector's in-memory HTTP client.
 func NewRuntime(token string) *Runtime {
+	return NewRuntimeWithAudit(token, "")
+}
+
+// NewRuntimeWithAudit constructs the runtime with optional durable audit storage.
+// A non-empty path enables an append-only, hash-chained JSONL audit log.
+func NewRuntimeWithAudit(token, auditPath string) *Runtime {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    Name,
 		Version: Version,
 	}, nil)
 
 	auditStore := audit.NewStore(audit.DefaultCapacity)
+	if auditPath != "" {
+		var err error
+		auditStore, err = audit.NewFileStore(auditPath, audit.DefaultCapacity)
+		if err != nil {
+			panic(fmt.Errorf("initialize audit log: %w", err))
+		}
+	}
 	connectorRegistry := integrations.NewRegistry()
 	connectorManager := integrations.NewManager(connectorRegistry)
 	githubConnector := githubprovider.NewConnector()
@@ -264,6 +286,7 @@ func (r *Runtime) DashboardHandler() http.Handler {
 		Connectors:   connectors,
 		HealthChecks: healthChecks,
 		AuditEvents:  func(limit int) []audit.Event { return r.audit.List(limit) },
+		AuditHealth:  func() audit.Health { return r.audit.Health() },
 	})
 }
 

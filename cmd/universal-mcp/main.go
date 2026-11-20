@@ -31,6 +31,20 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	var bearerMiddleware func(http.Handler) http.Handler
+	if *transport == "http" {
+		var configured bool
+		var err error
+		bearerMiddleware, configured, err = newHTTPBearerMiddleware(ctx, os.LookupEnv)
+		if err != nil {
+			logger.Error("HTTP authentication configuration rejected", "error", err)
+			return 2
+		}
+		if configured {
+			logger.Info("HTTP MCP bearer authentication enabled", "issuer", os.Getenv("MCP_OIDC_ISSUER"))
+		}
+	}
+
 	runtime := platformserver.NewRuntimeWithAllStores(os.Getenv("GITHUB_TOKEN"), env("MCP_AUDIT_PATH", "./data/audit.jsonl"), env("MCP_WORKFLOW_PATH", ""), env("MCP_APPROVAL_PATH", ""))
 	mcpServer := runtime.Server
 	defer func() {
@@ -51,7 +65,7 @@ func run() int {
 		}
 	case "http":
 		if !isLoopbackAddress(*addr) {
-			logger.Error("remote HTTP is disabled until authentication and authorization are implemented; bind to localhost", "address", *addr)
+			logger.Error("remote HTTP is disabled until dashboard and operator API routes are authenticated; bind to localhost", "address", *addr)
 			return 2
 		}
 		mcpHandler := mcp.NewStreamableHTTPHandler(
@@ -59,7 +73,13 @@ func run() int {
 			&mcp.StreamableHTTPOptions{Stateless: true, Logger: logger},
 		)
 		mux := http.NewServeMux()
-		mux.Handle("/mcp", localPrincipalMiddleware(mcpHandler))
+		if bearerMiddleware != nil {
+			mux.Handle("/mcp", bearerMiddleware(mcpHandler))
+		} else {
+			mux.Handle("/mcp", localPrincipalMiddleware(mcpHandler))
+		}
+		// The operator dashboard remains loopback-only. Its browser UI does not
+		// yet have an interactive OIDC login flow, so do not expose it remotely.
 		mux.Handle("/", runtime.DashboardHandlerWithStaticDir(env("MCP_DASHBOARD_DIR", "dashboard/dist")))
 		httpServer := &http.Server{
 			Addr: *addr, Handler: mux,
@@ -86,6 +106,63 @@ func run() int {
 		return 2
 	}
 	return 0
+}
+
+
+func newHTTPBearerMiddleware(
+	ctx context.Context,
+	lookup func(string) (string, bool),
+) (func(http.Handler) http.Handler, bool, error) {
+	if lookup == nil {
+		return nil, false, errors.New("environment lookup is required")
+	}
+	keys := []string{
+		"MCP_OIDC_ISSUER",
+		"MCP_OIDC_AUDIENCE",
+		"MCP_OIDC_CLIENT_ID",
+		"MCP_OIDC_CLIENT_SECRET",
+		"MCP_AUTHZ_GRANTS_FILE",
+	}
+	values := make(map[string]string, len(keys))
+	configured := 0
+	for _, key := range keys {
+		value, ok := lookup(key)
+		if ok && value != "" {
+			configured++
+			values[key] = value
+		}
+	}
+	if configured == 0 {
+		return nil, false, nil
+	}
+	if configured != len(keys) {
+		return nil, false, errors.New("MCP OIDC issuer, audience, client credentials and authorization grants file must all be configured")
+	}
+
+	grants, err := security.LoadPrincipalGrants(values["MCP_AUTHZ_GRANTS_FILE"])
+	if err != nil {
+		return nil, false, err
+	}
+	resolver, err := security.NewStaticPrincipalResolver(grants)
+	if err != nil {
+		return nil, false, err
+	}
+	discoveryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	verifier, err := security.NewOIDCIntrospectionVerifier(discoveryCtx, security.OIDCIntrospectionConfig{
+		Issuer:       values["MCP_OIDC_ISSUER"],
+		Audience:     values["MCP_OIDC_AUDIENCE"],
+		ClientID:     values["MCP_OIDC_CLIENT_ID"],
+		ClientSecret: values["MCP_OIDC_CLIENT_SECRET"],
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	middleware, err := security.NewBearerMiddleware(verifier, nil, resolver)
+	if err != nil {
+		return nil, false, err
+	}
+	return middleware, true, nil
 }
 
 func env(key, fallback string) string {

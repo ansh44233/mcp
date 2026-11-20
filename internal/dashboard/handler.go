@@ -2,14 +2,14 @@ package dashboard
 
 import (
 	"context"
-	"strconv"
-
-	"github.com/ansh44233/mcp/internal/audit"
 	"encoding/json"
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ansh44233/mcp/internal/audit"
 )
 
 var startedAt = time.Now()

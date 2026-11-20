@@ -38,12 +38,7 @@ func TestAuthorizerAllowsExplicitLocalReadOnlyPrincipal(t *testing.T) {
 }
 
 func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
-	principal := Principal{
-		ID: "user-1", TenantID: "tenant-a", Authenticated: true, Authentication: "test",
-		MaxRisk: tools.RiskRead,
-		AllowedTools: map[string]struct{}{"repo_read": {}},
-		AllowedProviders: map[string]struct{}{"github": {}},
-	}
+	principal := Principal{ID: "user-1", TenantID: "tenant-a", Authenticated: true, Authentication: "test", MaxRisk: tools.RiskRead, AllowedTools: map[string]struct{}{"repo_read": {}}, AllowedProviders: map[string]struct{}{"github": {}}}
 	ctx := WithPrincipal(context.Background(), principal)
 	authorizer := Authorizer{}
 
@@ -73,10 +68,7 @@ func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
 
 func TestWithPrincipalCopiesScopeMaps(t *testing.T) {
 	toolsScope := map[string]struct{}{"repo_read": {}}
-	ctx := WithPrincipal(context.Background(), Principal{
-		ID: "user-1", TenantID: "tenant-a", Authenticated: true, Authentication: "test",
-		MaxRisk: tools.RiskRead, AllowedTools: toolsScope,
-	})
+	ctx := WithPrincipal(context.Background(), Principal{ID: "user-1", TenantID: "tenant-a", Authenticated: true, Authentication: "test", MaxRisk: tools.RiskRead, AllowedTools: toolsScope})
 	toolsScope["other_read"] = struct{}{}
 	principal, ok := PrincipalFromContext(ctx)
 	if !ok {

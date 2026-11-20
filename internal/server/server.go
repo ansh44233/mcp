@@ -219,9 +219,11 @@ func DashboardHandler() http.Handler {
 	definitions := githubToolDefinitions()
 	toolInfos := make([]dashboard.ToolInfo, 0, len(definitions)+1)
 	toolInfos = append(toolInfos, dashboard.ToolInfo{
-		ID: "platform_status", Provider: "platform", Name: "status",
+		ID:          "platform_status",
+		Provider:    "platform",
+		Name:        "status",
 		Description: "Return the server version, uptime, Go runtime and supported transports.",
-		Risk: "read",
+		Risk:        "read",
 	})
 	for _, definition := range definitions {
 		toolInfos = append(toolInfos, dashboard.ToolInfo{
@@ -231,10 +233,10 @@ func DashboardHandler() http.Handler {
 	}
 
 	return dashboard.HandlerWithConfig(dashboard.Config{
-		Version: Version,
-		Transports: []string{"stdio", "streamable-http"},
-		Tools: toolInfos,
-		Connectors: connectors,
+		Version:      Version,
+		Transports:   []string{"stdio", "streamable-http"},
+		Tools:        toolInfos,
+		Connectors:   connectors,
 		HealthChecks: healthChecks,
 	})
 }

@@ -21,10 +21,10 @@ const (
 
 // RateLimitError describes a GitHub API rate-limit response.
 type RateLimitError struct {
-	Message       string
-	RetryAfter    time.Duration
-	Remaining     string
-	ResetAt       time.Time
+	Message        string
+	RetryAfter     time.Duration
+	Remaining      string
+	ResetAt        time.Time
 	SecondaryLimit bool
 }
 

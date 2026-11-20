@@ -2,6 +2,9 @@ package dashboard
 
 import (
 	"context"
+	"strconv"
+
+	"github.com/ansh44233/mcp/internal/audit"
 	"encoding/json"
 	"net/http"
 	"runtime"
@@ -34,6 +37,7 @@ type Config struct {
 	Tools        []ToolInfo
 	Connectors   []ConnectorInfo
 	HealthChecks map[string]func(context.Context) error
+	AuditEvents  func(int) []audit.Event
 }
 
 type status struct {
@@ -93,6 +97,15 @@ func HandlerWithConfig(config Config) http.Handler {
 			result = append(result, tool)
 		}
 		writeJSON(w, map[string]any{"tools": result, "count": len(result)})
+	})
+	mux.HandleFunc("GET /api/v1/audit", func(w http.ResponseWriter, r *http.Request) {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		if config.AuditEvents == nil {
+			writeJSON(w, map[string]any{"events": []audit.Event{}, "count": 0})
+			return
+		}
+		events := config.AuditEvents(limit)
+		writeJSON(w, map[string]any{"events": events, "count": len(events)})
 	})
 	mux.HandleFunc("GET /api/v1/connectors", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"connectors": config.Connectors, "count": len(config.Connectors)})

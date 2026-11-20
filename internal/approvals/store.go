@@ -64,6 +64,7 @@ type Store struct {
 	next      uint64
 	lastHash  string
 	lastError error
+	closed    bool
 }
 
 func NewStore(maxItems int) *Store {

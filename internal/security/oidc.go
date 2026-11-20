@@ -52,10 +52,17 @@ func NewOIDCIntrospectionVerifier(ctx context.Context, config OIDCIntrospectionC
 		return nil, err
 	}
 
-	client := config.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
+	baseClient := config.HTTPClient
+	if baseClient == nil {
+		baseClient = http.DefaultClient
 	}
+	// Discovery and introspection endpoints are pinned during initialization.
+	// Never follow redirects, especially for requests carrying client credentials.
+	clientCopy := *baseClient
+	clientCopy.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	client := &clientCopy
 
 	discoveryURL := strings.TrimRight(config.Issuer, "/") + "/.well-known/openid-configuration"
 	discoveryCtx, cancel := context.WithTimeout(ctx, oidcRequestTimeout)

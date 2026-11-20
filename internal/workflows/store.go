@@ -305,8 +305,16 @@ func (s *Store) Cancel(ctx context.Context, id string) (Workflow, error) {
 	if item.Status == Succeeded || item.Status == Failed || item.Status == Cancelled {
 		return Workflow{}, ErrInvalidState
 	}
+	now := s.now().UTC()
+	for i := range item.Steps {
+		if item.Steps[i].Status == Running {
+			item.Steps[i].Status = Cancelled
+			item.Steps[i].CompletedAt = &now
+			item.Steps[i].ErrorCode = "cancelled_by_owner"
+		}
+	}
 	item.Status = Cancelled
-	item.UpdatedAt = s.now().UTC()
+	item.UpdatedAt = now
 	if err := s.persistLocked(item); err != nil {
 		return Workflow{}, err
 	}

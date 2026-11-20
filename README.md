@@ -2,7 +2,7 @@
 
 A Go-based, provider-neutral Model Context Protocol platform with a first-class operator dashboard.
 
-> **Project status: early foundation.** The repository contains a runnable MCP server, a local dashboard, a provider-neutral tool catalog, and an initial read-only GitHub connector. Authentication beyond an optional GitHub token, remote HTTP access, workflow execution and the full management UI are not implemented.
+> **Project status: early foundation.** The repository contains a runnable MCP server, a local dashboard, a provider-neutral tool catalog, and an initial read-only GitHub connector. Authentication beyond an optional GitHub token, remote HTTP access, workflow execution and connector management are not implemented. The current dashboard includes a registry-backed read-only tool catalog.
 
 ## Vision
 
@@ -36,7 +36,8 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Optional `GITHUB_TOKEN` environment variable for authenticated GitHub API access; public repository reads work without it.
 - Mock HTTP tests for the GitHub client and lifecycle tests for the connector.
 - Local operator dashboard served by HTTP mode.
-- Read-only `/healthz` and `/api/v1/status` endpoints.
+- Read-only `/healthz`, `/api/v1/status`, `/api/v1/tools` and `/api/v1/connectors` endpoints.
+- Dashboard tool inventory is generated from the same provider tool definitions used to publish MCP capabilities; supports text search and provider filtering.
 - Graceful HTTP shutdown and structured server logs.
 - HTTP mode restricted to loopback addresses until remote authentication and authorization are implemented.
 - GitHub Actions checks for formatting, dependency resolution, vetting and tests.
@@ -47,7 +48,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - GitHub write operations behind explicit authorization and approval policies.
 - Authentication, authorization, secret-provider integration, tenant isolation and audit history.
 - Workflow execution, retries and durable checkpoints.
-- Full dashboard views for connectors, tools, sessions, workflows, approvals, logs and security.
+- Full dashboard management views for connectors, sessions, workflows, approvals, logs and security; current connector/tool views are read-only.
 - Additional providers and cross-provider search.
 - MCP compatibility, security, performance and reliability benchmarks.
 
@@ -83,6 +84,8 @@ Then open:
 - Dashboard: http://127.0.0.1:8080/
 - Health: http://127.0.0.1:8080/healthz
 - Status API: http://127.0.0.1:8080/api/v1/status
+- Tool catalog API: http://127.0.0.1:8080/api/v1/tools
+- Connector inventory API: http://127.0.0.1:8080/api/v1/connectors
 - MCP endpoint: http://127.0.0.1:8080/mcp
 
 HTTP mode intentionally binds to loopback only. Do not expose it to a network: remote authentication, authorization and tenant isolation are not implemented yet.

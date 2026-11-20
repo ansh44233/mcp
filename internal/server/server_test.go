@@ -1,6 +1,7 @@
 package server
 
 import (
+	"time"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -105,5 +106,20 @@ func TestDashboardUsesRegisteredMCPDefinitions(t *testing.T) {
 	handler.ServeHTTP(connectorResponse, httptest.NewRequest(http.MethodGet, "/api/v1/connectors", nil))
 	if connectorResponse.Code != http.StatusOK || !strings.Contains(connectorResponse.Body.String(), "github") {
 		t.Fatalf("unexpected connector inventory response: %s", connectorResponse.Body.String())
+	}
+}
+
+func TestRuntimeCloseShutsDownManagedConnectors(t *testing.T) {
+	runtime := NewRuntime("")
+	if runtime == nil || runtime.Server == nil {
+		t.Fatal("runtime did not construct an MCP server")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := runtime.Close(ctx); err != nil {
+		t.Fatalf("close runtime: %v", err)
+	}
+	if err := runtime.Close(ctx); err != nil {
+		t.Fatalf("close runtime twice: %v", err)
 	}
 }

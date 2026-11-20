@@ -35,6 +35,8 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Typed primary/secondary rate-limit errors with retry-after and reset metadata when provided by GitHub.
 - Optional `GITHUB_TOKEN` environment variable for authenticated GitHub API access; public repository reads work without it.
 - Mock HTTP tests for the GitHub client and lifecycle tests for the connector.
+- Managed connector lifecycle: initialize-before-publish, rollback on registration failure, orderly unregister and retryable graceful shutdown.
+- The process owns a runtime handle and closes managed provider connectors after stdio or HTTP transport shutdown.
 - Local operator dashboard served by HTTP mode.
 - Read-only `/healthz`, `/api/v1/status`, `/api/v1/tools` and `/api/v1/connectors` endpoints.
 - Dashboard tool inventory is generated from the same provider tool definitions used to publish MCP capabilities; supports text search and provider filtering.
@@ -45,7 +47,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 
 ## Planned capabilities
 
-- More complete connector SDK, lifecycle management and dynamic registration.
+- More complete connector SDK, runtime status reporting and dynamic registration.
 - GitHub write operations behind explicit authorization and approval policies.
 - Authentication, authorization, secret-provider integration, tenant isolation and audit history.
 - Workflow execution, retries and durable checkpoints.

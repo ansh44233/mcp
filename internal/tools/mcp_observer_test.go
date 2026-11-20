@@ -10,10 +10,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type observedCall struct { outcome string }
+type observedCall struct {
+	outcome string
+}
 
 type testObserver struct {
-	mu sync.Mutex
+	mu    sync.Mutex
 	calls []observedCall
 }
 
@@ -27,7 +29,9 @@ func (o *testObserver) outcomes() []string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	result := make([]string, len(o.calls))
-	for i, call := range o.calls { result[i] = call.outcome }
+	for i, call := range o.calls {
+		result[i] = call.outcome
+	}
 	return result
 }
 
@@ -37,16 +41,22 @@ func TestRegisterMCPWithObserverRecordsDeniedFailedAndSuccessfulCalls(t *testing
 		if err := registry.Register(Definition{
 			ID: id, Provider: "test", Name: id, Description: "Observer test tool.",
 			Risk: RiskRead, InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
-		}); err != nil { t.Fatal(err) }
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	observer := &testObserver{}
 	server := mcp.NewServer(&mcp.Implementation{Name: "observer-test", Version: "0.0.1"}, nil)
 	executor := func(_ context.Context, definition Definition, _ json.RawMessage) (any, error) {
-		if definition.ID == "failed_tool" { return nil, context.DeadlineExceeded }
+		if definition.ID == "failed_tool" {
+			return nil, context.DeadlineExceeded
+		}
 		return map[string]any{"ok": true}, nil
 	}
 	authorize := func(_ context.Context, definition Definition, _ json.RawMessage) error {
-		if definition.ID == "denied_tool" { return context.Canceled }
+		if definition.ID == "denied_tool" {
+			return context.Canceled
+		}
 		return nil
 	}
 	if err := RegisterMCPWithObserver(server, registry, executor, ReadOnlyPolicy(), authorize, observer); err != nil {
@@ -54,11 +64,15 @@ func TestRegisterMCPWithObserverRecordsDeniedFailedAndSuccessfulCalls(t *testing
 	}
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer serverSession.Close()
 	client := mcp.NewClient(&mcp.Implementation{Name: "observer-client", Version: "0.0.1"}, nil)
 	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer clientSession.Close()
 	for _, name := range []string{"denied_tool", "failed_tool", "successful_tool"} {
 		if _, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: map[string]any{}}); err != nil {
@@ -67,6 +81,12 @@ func TestRegisterMCPWithObserverRecordsDeniedFailedAndSuccessfulCalls(t *testing
 	}
 	got := observer.outcomes()
 	want := []string{"denied", "failed", "succeeded"}
-	if len(got) != len(want) { t.Fatalf("outcomes = %v", got) }
-	for i := range want { if got[i] != want[i] { t.Fatalf("outcomes = %v, want %v", got, want) } }
+	if len(got) != len(want) {
+		t.Fatalf("outcomes = %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("outcomes = %v, want %v", got, want)
+		}
+	}
 }

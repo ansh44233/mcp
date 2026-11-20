@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/ansh44233/mcp/internal/tools"
+	"github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 func TestBearerMiddlewareAttachesVerifiedPrincipal(t *testing.T) {
@@ -16,7 +16,11 @@ func TestBearerMiddlewareAttachesVerifiedPrincipal(t *testing.T) {
 		if token != "valid-token" {
 			return nil, auth.ErrInvalidToken
 		}
-		return &auth.TokenInfo{UserID: "user-42", Scopes: []string{"tools:read"}, Expiration: time.Now().Add(time.Hour)}, nil
+		return &auth.TokenInfo{
+			UserID:     "user-42",
+			Scopes:     []string{"tools:read"},
+			Expiration: time.Now().Add(time.Hour),
+		}, nil
 	}
 	middleware, err := NewBearerMiddleware(verifier, nil, func(_ context.Context, info *auth.TokenInfo) (Principal, error) {
 		return Principal{

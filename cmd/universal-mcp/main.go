@@ -26,7 +26,16 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	mcpServer := platformserver.New()
+	runtime := platformserver.NewRuntime(os.Getenv("GITHUB_TOKEN"))
+	mcpServer := runtime.Server
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := runtime.Close(shutdownCtx); err != nil {
+			logger.Error("connector shutdown incomplete", "error", err)
+		}
+	}()
+
 	switch *transport {
 	case "stdio":
 		logger.Info("starting MCP server", "transport", "stdio", "version", platformserver.Version)

@@ -246,6 +246,8 @@ func (s *Store) finishStep(ctx context.Context, id, stepID string, success bool,
 		item.Steps[index].Status = Succeeded
 		if index == len(item.Steps)-1 {
 			item.Status = Succeeded
+		} else {
+			item.Status = Pending
 		}
 	} else {
 		item.Steps[index].Status = Failed

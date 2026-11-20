@@ -55,14 +55,14 @@ type Request struct {
 }
 
 type Store struct {
-	mu       sync.Mutex
-	requests map[string]Request
-	maxItems int
-	now      func() time.Time
-	newID    func() (string, error)
-	file     *os.File
-	next     uint64
-	lastHash string
+	mu        sync.Mutex
+	requests  map[string]Request
+	maxItems  int
+	now       func() time.Time
+	newID     func() (string, error)
+	file      *os.File
+	next      uint64
+	lastHash  string
 	lastError error
 }
 

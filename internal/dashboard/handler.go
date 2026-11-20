@@ -10,21 +10,23 @@ import (
 var startedAt = time.Now()
 
 type status struct {
-	Name       string   `json:"name"`
-	Version    string   `json:"version"`
-	Status     string   `json:"status"`
-	UptimeSec  int64    `json:"uptime_sec"`
-	GoVersion  string   `json:"go_version"`
-	Transports []string `json:"transports"`
+	Name         string   `json:"name"`
+	Version      string   `json:"version"`
+	Status       string   `json:"status"`
+	UptimeSec    int64    `json:"uptime_sec"`
+	GoVersion    string   `json:"go_version"`
+	Transports   []string `json:"transports"`
 	Integrations []string `json:"integrations"`
 }
 
 func currentStatus() status {
 	return status{
-		Name: "universal-mcp", Version: "0.1.0", Status: "ok",
-		UptimeSec: int64(time.Since(startedAt).Seconds()),
-		GoVersion: runtime.Version(),
-		Transports: []string{"stdio", "streamable-http"},
+		Name:         "universal-mcp",
+		Version:      "0.1.0",
+		Status:       "ok",
+		UptimeSec:    int64(time.Since(startedAt).Seconds()),
+		GoVersion:    runtime.Version(),
+		Transports:   []string{"stdio", "streamable-http"},
 		Integrations: []string{},
 	}
 }

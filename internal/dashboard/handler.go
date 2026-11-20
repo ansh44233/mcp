@@ -3,6 +3,8 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -47,6 +49,7 @@ type Config struct {
 	AuditHealth    func() audit.Health
 	WorkflowHealth func() workflows.Health
 	ApprovalHealth func() approvals.Health
+	ApprovalStore  *approvals.Store
 	StaticDir      string
 }
 
@@ -128,6 +131,63 @@ func HandlerWithConfig(config Config) http.Handler {
 		}
 		writeJSON(w, config.ApprovalHealth())
 	})
+	mux.HandleFunc("GET /api/v1/approvals", func(w http.ResponseWriter, r *http.Request) {
+		if config.ApprovalStore == nil {
+			http.Error(w, "approval service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		requests, err := config.ApprovalStore.List(r.Context(), limit)
+		if err != nil {
+			writeApprovalError(w, err)
+			return
+		}
+		writeJSON(w, map[string]any{"requests": requests, "count": len(requests)})
+	})
+	mux.HandleFunc("GET /api/v1/approvals/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if config.ApprovalStore == nil {
+			http.Error(w, "approval service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		request, err := config.ApprovalStore.Get(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeApprovalError(w, err)
+			return
+		}
+		writeJSON(w, request)
+	})
+	mux.HandleFunc("POST /api/v1/approvals/{id}/decision", func(w http.ResponseWriter, r *http.Request) {
+		if config.ApprovalStore == nil {
+			http.Error(w, "approval service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		var input struct {
+			Approve bool   `json:"approve"`
+			Reason  string `json:"reason"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			http.Error(w, "invalid decision payload", http.StatusBadRequest)
+			return
+		}
+		var extra any
+		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+			http.Error(w, "invalid decision payload", http.StatusBadRequest)
+			return
+		}
+		if len(input.Reason) > 512 {
+			http.Error(w, "reason exceeds 512 bytes", http.StatusBadRequest)
+			return
+		}
+		request, err := config.ApprovalStore.Decide(r.Context(), r.PathValue("id"), input.Approve, input.Reason)
+		if err != nil {
+			writeApprovalError(w, err)
+			return
+		}
+		writeJSON(w, request)
+	})
 	mux.HandleFunc("GET /api/v1/audit/health", func(w http.ResponseWriter, r *http.Request) {
 		if config.AuditHealth == nil {
 			writeJSON(w, audit.Health{})
@@ -175,6 +235,21 @@ func HandlerWithConfig(config Config) http.Handler {
 		_, _ = w.Write([]byte(indexHTML))
 	})
 	return mux
+}
+
+func writeApprovalError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, approvals.ErrNotFound):
+		http.Error(w, "approval request not found", http.StatusNotFound)
+	case errors.Is(err, approvals.ErrForbidden):
+		http.Error(w, "approval action is not permitted", http.StatusForbidden)
+	case errors.Is(err, approvals.ErrExpired):
+		http.Error(w, "approval request expired", http.StatusConflict)
+	case errors.Is(err, approvals.ErrInvalidState):
+		http.Error(w, "approval request is not pending", http.StatusConflict)
+	default:
+		http.Error(w, "approval operation failed", http.StatusInternalServerError)
+	}
 }
 
 func serveSPA(w http.ResponseWriter, r *http.Request, directory string) {

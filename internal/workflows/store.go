@@ -55,16 +55,16 @@ type Workflow struct {
 }
 
 type Store struct {
-	mu       sync.Mutex
-	items    map[string]Workflow
-	maxItems int
-	now      func() time.Time
-	newID    func() (string, error)
-	file     *os.File
-	next     uint64
-	lastHash string
-	lastError  error
-	closed   bool
+	mu        sync.Mutex
+	items     map[string]Workflow
+	maxItems  int
+	now       func() time.Time
+	newID     func() (string, error)
+	file      *os.File
+	next      uint64
+	lastHash  string
+	lastError error
+	closed    bool
 }
 
 func NewStore(maxItems int) *Store {

@@ -26,8 +26,9 @@ var startedAt = time.Now()
 
 // Runtime owns the MCP server and the connector lifecycle manager.
 type Runtime struct {
-	Server  *mcp.Server
-	manager *integrations.Manager
+	Server   *mcp.Server
+	manager  *integrations.Manager
+	registry *integrations.Registry
 }
 
 // Close gracefully shuts down all managed provider connectors.
@@ -99,7 +100,7 @@ func NewRuntime(token string) *Runtime {
 		panic(fmt.Errorf("publish catalog tools: %w", err))
 	}
 
-	return &Runtime{Server: s, manager: connectorManager}
+	return &Runtime{Server: s, manager: connectorManager, registry: connectorRegistry}
 }
 
 func githubToolDefinitions() []platformtools.Definition {
@@ -207,19 +208,15 @@ func githubExecutor(client *githubprovider.Client) platformtools.Executor {
 	}
 }
 
-// DashboardHandler exposes metadata and bounded health checks for registered connectors.
-func DashboardHandler() http.Handler {
-	registry := integrations.NewRegistry()
-	manager := integrations.NewManager(registry)
-	connector := githubprovider.NewConnector()
-	if err := manager.Register(context.Background(), connector, integrations.Config{"token": os.Getenv("GITHUB_TOKEN")}); err != nil {
-		panic(fmt.Errorf("register dashboard GitHub connector: %w", err))
+// DashboardHandler exposes metadata and bounded health checks for this runtime's connectors.
+func (r *Runtime) DashboardHandler() http.Handler {
+	if r == nil || r.registry == nil {
+		return dashboard.Handler()
 	}
-
 	connectors := make([]dashboard.ConnectorInfo, 0)
 	healthChecks := make(map[string]func(context.Context) error)
-	for _, metadata := range registry.List() {
-		registered, ok := registry.Get(metadata.ID)
+	for _, metadata := range r.registry.List() {
+		registered, ok := r.registry.Get(metadata.ID)
 		if !ok {
 			continue
 		}
@@ -242,11 +239,9 @@ func DashboardHandler() http.Handler {
 	definitions := githubToolDefinitions()
 	toolInfos := make([]dashboard.ToolInfo, 0, len(definitions)+1)
 	toolInfos = append(toolInfos, dashboard.ToolInfo{
-		ID:          "platform_status",
-		Provider:    "platform",
-		Name:        "status",
+		ID: "platform_status", Provider: "platform", Name: "status",
 		Description: "Return the server version, uptime, Go runtime and supported transports.",
-		Risk:        "read",
+		Risk: "read",
 	})
 	for _, definition := range definitions {
 		toolInfos = append(toolInfos, dashboard.ToolInfo{
@@ -254,12 +249,14 @@ func DashboardHandler() http.Handler {
 			Description: definition.Description, Risk: string(definition.Risk),
 		})
 	}
-
 	return dashboard.HandlerWithConfig(dashboard.Config{
-		Version:      Version,
-		Transports:   []string{"stdio", "streamable-http"},
-		Tools:        toolInfos,
-		Connectors:   connectors,
-		HealthChecks: healthChecks,
+		Version: Version, Transports: []string{"stdio", "streamable-http"},
+		Tools: toolInfos, Connectors: connectors, HealthChecks: healthChecks,
 	})
+}
+
+// DashboardHandler constructs a standalone local dashboard runtime.
+// Production processes should use Runtime.DashboardHandler to share connector instances.
+func DashboardHandler() http.Handler {
+	return NewRuntime(os.Getenv("GITHUB_TOKEN")).DashboardHandler()
 }

@@ -4,6 +4,7 @@
 package approvals
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -108,6 +109,9 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 	}
 	if request.RequesterID == principal.ID { return Request{}, ErrForbidden }
 	request.ApproverID = principal.ID
+	if len(reason) > 512 {
+		reason = reason[:512]
+	}
 	request.Reason = reason
 	request.Status = Rejected
 	if approve { request.Status = Approved }

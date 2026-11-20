@@ -182,55 +182,87 @@ func validWorkflowUpdate(old, next Workflow) bool {
 		next.UpdatedAt.Before(old.UpdatedAt) || len(old.Steps) != len(next.Steps) {
 		return false
 	}
-	switch old.Status {
-	case Pending:
-		if next.Status != Running && next.Status != Cancelled {
-			return false
-		}
-	case Running:
-		if next.Status != Pending && next.Status != Succeeded && next.Status != Failed && next.Status != Cancelled {
-			return false
-		}
-	case Failed:
-		if next.Status != Pending {
-			return false
-		}
-	default:
-		return false
-	}
 
 	changed := 0
+	changedIndex := -1
 	for i := range old.Steps {
 		a, b := old.Steps[i], next.Steps[i]
 		if a.ID != b.ID || a.ToolID != b.ToolID {
 			return false
 		}
 		if a.Status == b.Status {
-			if a.Attempts != b.Attempts {
+			if a.Attempts != b.Attempts || !sameOptionalTime(a.StartedAt, b.StartedAt) ||
+				!sameOptionalTime(a.CompletedAt, b.CompletedAt) || a.ErrorCode != b.ErrorCode {
 				return false
 			}
 			continue
 		}
 		changed++
+		changedIndex = i
 		switch a.Status {
 		case Pending:
-			if b.Status != Running || b.Attempts != a.Attempts+1 || b.StartedAt == nil || b.CompletedAt != nil {
+			if b.Status != Running || b.Attempts != a.Attempts+1 || b.StartedAt == nil ||
+				b.CompletedAt != nil || b.ErrorCode != "" {
 				return false
 			}
 		case Running:
 			if (b.Status != Succeeded && b.Status != Failed && b.Status != Cancelled) ||
-				b.Attempts != a.Attempts || b.CompletedAt == nil {
+				b.Attempts != a.Attempts || b.StartedAt == nil || b.CompletedAt == nil ||
+				b.CompletedAt.Before(*b.StartedAt) {
+				return false
+			}
+			if b.Status == Succeeded && b.ErrorCode != "" {
 				return false
 			}
 		case Failed:
-			if b.Status != Pending || b.Attempts != a.Attempts || b.StartedAt != nil || b.CompletedAt != nil {
+			if b.Status != Pending || b.Attempts != a.Attempts || b.StartedAt != nil ||
+				b.CompletedAt != nil || b.ErrorCode != "" {
 				return false
 			}
 		default:
 			return false
 		}
 	}
-	return changed <= 1
+	if changed > 1 {
+		return false
+	}
+
+	switch old.Status {
+	case Pending:
+		if next.Status == Cancelled {
+			return changed == 0
+		}
+		return next.Status == Running && changed == 1 &&
+			old.Steps[changedIndex].Status == Pending && next.Steps[changedIndex].Status == Running
+	case Running:
+		if changed != 1 || old.Steps[changedIndex].Status != Running {
+			return false
+		}
+		switch next.Status {
+		case Pending:
+			return next.Steps[changedIndex].Status == Succeeded && changedIndex < len(next.Steps)-1
+		case Succeeded:
+			return next.Steps[changedIndex].Status == Succeeded && changedIndex == len(next.Steps)-1
+		case Failed:
+			return next.Steps[changedIndex].Status == Failed
+		case Cancelled:
+			return next.Steps[changedIndex].Status == Cancelled
+		default:
+			return false
+		}
+	case Failed:
+		return next.Status == Pending && changed == 1 &&
+			old.Steps[changedIndex].Status == Failed && next.Steps[changedIndex].Status == Pending
+	default:
+		return false
+	}
+}
+
+func sameOptionalTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(*b)
 }
 
 func workflowRecordHash(record journalRecord) (string, error) {

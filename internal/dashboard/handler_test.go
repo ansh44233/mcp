@@ -16,7 +16,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if !strings.Contains(rec.Body.String(), "`ok`") {
+	if !strings.Contains(rec.Body.String(), `"ok"`) {
 		t.Fatalf("unexpected health response: %s", rec.Body.String())
 	}
 }

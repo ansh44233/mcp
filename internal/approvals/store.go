@@ -61,28 +61,38 @@ type Store struct {
 }
 
 func NewStore(maxItems int) *Store {
-	if maxItems < 1 { maxItems = 10000 }
+	if maxItems < 1 {
+		maxItems = 10000
+	}
 	return &Store{requests: make(map[string]Request), maxItems: maxItems, now: time.Now, newID: randomID}
 }
 
 func (s *Store) Create(ctx context.Context, definition tools.Definition, arguments json.RawMessage, ttl time.Duration) (Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)
-	if !ok { return Request{}, ErrForbidden }
-	if err := principal.Validate(); err != nil { return Request{}, ErrForbidden }
+	if !ok {
+		return Request{}, ErrForbidden
+	}
+	if err := principal.Validate(); err != nil || !principal.Authenticated {
+		return Request{}, ErrForbidden
+	}
 	if definition.Risk != tools.RiskWrite && definition.Risk != tools.RiskDestructive {
 		return Request{}, fmt.Errorf("approval requests require a write-capable tool")
 	}
-	if len(arguments) == 0 || !json.Valid(arguments) { return Request{}, fmt.Errorf("valid JSON arguments are required") }
-	if ttl <= 0 || ttl > 24*time.Hour { return Request{}, fmt.Errorf("approval TTL must be between 1ns and 24h") }
+	if len(arguments) == 0 || !json.Valid(arguments) {
+		return Request{}, fmt.Errorf("valid JSON arguments are required")
+	}
+	if ttl <= 0 || ttl > 24*time.Hour {
+		return Request{}, fmt.Errorf("approval TTL must be between 1ns and 24h")
+	}
 	id, err := s.newID()
 	if err != nil { return Request{}, fmt.Errorf("generate approval ID: %w", err) }
 	now := s.now().UTC()
 	sum := sha256.Sum256(arguments)
 	request := Request{
-		ID:id, TenantID:principal.TenantID, RequesterID:principal.ID,
-		ToolID:definition.ID, Provider:definition.Provider, Risk:definition.Risk,
-		ArgumentsHash:hex.EncodeToString(sum[:]), Status:Pending,
-		CreatedAt:now, ExpiresAt:now.Add(ttl),
+		ID: id, TenantID: principal.TenantID, RequesterID: principal.ID,
+		ToolID: definition.ID, Provider: definition.Provider, Risk: definition.Risk,
+		ArgumentsHash: hex.EncodeToString(sum[:]), Status: Pending,
+		CreatedAt: now, ExpiresAt: now.Add(ttl),
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,19 +105,27 @@ func (s *Store) Create(ctx context.Context, definition tools.Definition, argumen
 // Decide requires a different, authenticated principal in the same tenant.
 func (s *Store) Decide(ctx context.Context, id string, approve bool, reason string) (Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)
-	if !ok || !principal.Authenticated || principal.Validate() != nil { return Request{}, ErrForbidden }
+	if !ok || !principal.Authenticated || principal.Validate() != nil {
+		return Request{}, ErrForbidden
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
-	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
-	if request.Status != Pending { return Request{}, ErrInvalidState }
+	if !exists || request.TenantID != principal.TenantID {
+		return Request{}, ErrNotFound
+	}
+	if request.Status != Pending {
+		return Request{}, ErrInvalidState
+	}
 	now := s.now().UTC()
 	if !now.Before(request.ExpiresAt) {
 		request.Status = Expired
 		s.requests[id] = request
 		return request, ErrExpired
 	}
-	if request.RequesterID == principal.ID { return Request{}, ErrForbidden }
+	if request.RequesterID == principal.ID {
+		return Request{}, ErrForbidden
+	}
 	request.ApproverID = principal.ID
 	if len(reason) > 512 {
 		reason = reason[:512]
@@ -124,14 +142,18 @@ func (s *Store) Decide(ctx context.Context, id string, approve bool, reason stri
 // exact tool identity and exact argument bytes. A request can be consumed once.
 func (s *Store) Consume(ctx context.Context, id string, definition tools.Definition, arguments json.RawMessage) (Request, error) {
 	principal, ok := security.PrincipalFromContext(ctx)
-	if !ok || principal.Validate() != nil { return Request{}, ErrForbidden }
+	if !ok || !principal.Authenticated || principal.Validate() != nil {
+		return Request{}, ErrForbidden
+	}
 	sum := sha256.Sum256(arguments)
 	digest := hex.EncodeToString(sum[:])
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, exists := s.requests[id]
 	if !exists || request.TenantID != principal.TenantID { return Request{}, ErrNotFound }
-	if request.Status != Approved { return Request{}, ErrInvalidState }
+	if request.Status != Approved {
+		return Request{}, ErrInvalidState
+	}
 	now := s.now().UTC()
 	if !now.Before(request.ExpiresAt) {
 		request.Status = Expired
@@ -142,7 +164,9 @@ func (s *Store) Consume(ctx context.Context, id string, definition tools.Definit
 		request.Provider != definition.Provider || request.Risk != definition.Risk {
 		return Request{}, ErrForbidden
 	}
-	if digest != request.ArgumentsHash { return Request{}, ErrArgumentChange }
+	if digest != request.ArgumentsHash {
+		return Request{}, ErrArgumentChange
+	}
 	request.Status = Consumed
 	request.ConsumedAt = &now
 	s.requests[id] = request

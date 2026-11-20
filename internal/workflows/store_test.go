@@ -194,6 +194,53 @@ func TestFileStoreDoesNotPublishAfterAppendFailure(t *testing.T) {
 	}
 }
 
+
+func TestValidWorkflowUpdateRejectsIncoherentTransitions(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	started := now.Add(time.Minute)
+	completed := now.Add(2 * time.Minute)
+	old := Workflow{
+		ID: "workflow-1", TenantID: "tenant-a", OwnerID: "alice", Name: "test",
+		Status: Pending, CreatedAt: now, UpdatedAt: now,
+		Steps: []Step{{ID: "step-01", ToolID: "tool_read", Status: Pending}},
+	}
+	next := cloneWorkflow(old)
+	next.Status = Running
+	next.UpdatedAt = started
+	if validWorkflowUpdate(old, next) {
+		t.Fatal("workflow must not become running without starting a step")
+	}
+
+	running := cloneWorkflow(old)
+	running.Status = Running
+	running.UpdatedAt = started
+	running.Steps[0].Status = Running
+	running.Steps[0].Attempts = 1
+	running.Steps[0].StartedAt = &started
+	next = cloneWorkflow(running)
+	next.Status = Succeeded
+	next.UpdatedAt = completed
+	if validWorkflowUpdate(running, next) {
+		t.Fatal("workflow must not succeed while its step remains running")
+	}
+
+	next = cloneWorkflow(running)
+	next.Steps[0].StartedAt = nil
+	next.UpdatedAt = completed
+	if validWorkflowUpdate(running, next) {
+		t.Fatal("journal must not rewrite timestamps on an unchanged step state")
+	}
+
+	next = cloneWorkflow(running)
+	next.Status = Succeeded
+	next.Steps[0].Status = Succeeded
+	next.Steps[0].CompletedAt = &completed
+	next.UpdatedAt = completed
+	if !validWorkflowUpdate(running, next) {
+		t.Fatal("valid final-step completion should be accepted")
+	}
+}
+
 func TestWorkflowCancellationClosesRunningCheckpoint(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cancel.jsonl")
 	ctx := workflowContext("alice", "tenant-a", true)

@@ -189,3 +189,23 @@ func TestIntrospectionAudienceAcceptsStringAndArray(t *testing.T) {
 		t.Fatal("expected malformed audience to fail")
 	}
 }
+
+
+func TestValidateIntrospectionEndpointRequiresExactIssuerOrigin(t *testing.T) {
+	issuer, err := url.Parse("https://issuer.example:8443")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []string{
+		"https://issuer.example:9443/introspect",
+		"https://attacker.example:8443/introspect",
+		"http://issuer.example:8443/introspect",
+	} {
+		if _, err := validateIntrospectionEndpoint(endpoint, issuer); err == nil {
+			t.Fatalf("expected endpoint %q to be rejected", endpoint)
+		}
+	}
+	if got, err := validateIntrospectionEndpoint("https://issuer.example:8443/introspect", issuer); err != nil || got != "https://issuer.example:8443/introspect" {
+		t.Fatalf("expected exact issuer origin to pass, got %q, %v", got, err)
+	}
+}

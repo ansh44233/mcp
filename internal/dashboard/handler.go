@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -81,6 +82,11 @@ func Handler() http.Handler {
 // HandlerWithConfig serves operational APIs and, when StaticDir is configured,
 // the built React application. Without built assets it retains the embedded fallback UI.
 func HandlerWithConfig(config Config) http.Handler {
+	if config.StaticDir != "" {
+		if _, err := os.Stat(filepath.Join(config.StaticDir, "index.html")); err != nil {
+			config.StaticDir = ""
+		}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"status": "ok"})

@@ -48,9 +48,9 @@ func TestAuthorizerEnforcesToolProviderAndRiskScopes(t *testing.T) {
 	authorizer := Authorizer{}
 
 	tests := []struct {
-		name string
+		name       string
 		definition tools.Definition
-		want string
+		want       string
 	}{
 		{"allowed", tools.Definition{ID: "repo_read", Provider: "github", Risk: tools.RiskRead}, ""},
 		{"tool scope", tools.Definition{ID: "other_read", Provider: "github", Risk: tools.RiskRead}, "tool scope"},

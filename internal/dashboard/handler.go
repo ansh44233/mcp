@@ -17,6 +17,8 @@ type status struct {
 	GoVersion    string   `json:"go_version"`
 	Transports   []string `json:"transports"`
 	Integrations []string `json:"integrations"`
+	Tools        []string `json:"tools"`
+	ToolCount    int      `json:"tool_count"`
 }
 
 func currentStatus() status {
@@ -27,7 +29,18 @@ func currentStatus() status {
 		UptimeSec:    int64(time.Since(startedAt).Seconds()),
 		GoVersion:    runtime.Version(),
 		Transports:   []string{"stdio", "streamable-http"},
-		Integrations: []string{},
+		Integrations: []string{"github"},
+		Tools: []string{
+			"platform_status",
+			"github_repository_get",
+			"github_branches_list",
+			"github_commits_list",
+			"github_issues_list",
+			"github_pull_requests_list",
+			"github_file_get",
+			"github_tree_get",
+		},
+		ToolCount: 8,
 	}
 }
 
@@ -73,11 +86,11 @@ main{padding:34px clamp(20px,4vw,58px);max-width:1500px;width:100%;margin:auto}.
 <main><div class="top"><div><div class="eyebrow">Platform overview</div><h1>Control Center</h1><div class="sub">A live operational snapshot of your MCP runtime.</div></div><div class="pill">● SYSTEM OPERATIONAL</div></div>
 <div class="grid"><div class="card"><div class="label">Runtime status</div><div class="value ok" id="health">Healthy</div></div><div class="card"><div class="label">Server version</div><div class="value" id="version">0.1.0</div></div><div class="card"><div class="label">Uptime</div><div class="value" id="uptime">—</div></div><div class="card"><div class="label">Connectors</div><div class="value" id="connectors">0</div></div></div>
 <div class="section"><section class="panel"><h2>Platform services</h2><div class="row"><span>MCP runtime</span><b class="ok">Operational</b></div><div class="row"><span>Operator dashboard</span><b class="ok">Operational</b></div><div class="row"><span>Health API</span><b class="ok">Operational</b></div><div class="row"><span>Provider integrations</span><span class="muted">Not configured</span></div></section>
-<section class="panel" id="connectors"><h2>Connected providers</h2><div class="empty">No providers connected yet.<br>GitHub is planned as the first connector.</div></section>
-<section class="panel" id="tools"><h2>Tool registry</h2><div class="row"><span>platform_status</span><span class="ok">Available</span></div><div class="muted">More tools will appear as connectors are implemented.</div></section>
+<section class="panel" id="connectors"><h2>Connected providers</h2><div class="row"><span>GitHub</span><b class="ok">Connected · read-only</b></div><div class="muted">Seven read-only repository tools are registered. Authenticated access is optional via GITHUB_TOKEN.</div></section>
+<section class="panel" id="tools"><h2>Tool registry</h2><div class="muted" id="tools-count">Loading registered tools…</div><div id="tool-list"></div></section>
 <section class="panel" id="workflows"><h2>Workflow engine</h2><div class="empty">Workflow execution is planned. No workflows are currently running.</div></section></div>
 <footer>Universal MCP · Foundation preview · <span id="refresh">Refreshing status…</span></footer></main></div>
 <script>
-async function refresh(){try{const r=await fetch('/api/v1/status',{cache:'no-store'});if(!r.ok)throw Error('status unavailable');const s=await r.json();document.getElementById('health').textContent=s.status==='ok'?'Healthy':'Degraded';document.getElementById('version').textContent=s.version;document.getElementById('uptime').textContent=Math.floor(s.uptime_sec)+'s';document.getElementById('connectors').textContent=s.integrations.length;document.getElementById('refresh').textContent='Updated '+new Date().toLocaleTimeString()}catch(e){document.getElementById('health').textContent='Unavailable';document.getElementById('health').className='value';document.getElementById('refresh').textContent='Status API unavailable'}}
+async function refresh(){try{const r=await fetch('/api/v1/status',{cache:'no-store'});if(!r.ok)throw Error('status unavailable');const s=await r.json();document.getElementById('health').textContent=s.status==='ok'?'Healthy':'Degraded';document.getElementById('version').textContent=s.version;document.getElementById('uptime').textContent=Math.floor(s.uptime_sec)+'s';document.getElementById('connectors').textContent=s.integrations.length;const list=document.getElementById('tool-list');list.replaceChildren();for(const name of (s.tools||[])){const row=document.createElement('div');row.className='row';const label=document.createElement('span');label.textContent=name;const state=document.createElement('span');state.className='ok';state.textContent='Available';row.append(label,state);list.append(row)}document.getElementById('tools-count').textContent=(s.tool_count||0)+' tools registered';document.getElementById('refresh').textContent='Updated '+new Date().toLocaleTimeString()}catch(e){document.getElementById('health').textContent='Unavailable';document.getElementById('health').className='value';document.getElementById('refresh').textContent='Status API unavailable'}}
 refresh();setInterval(refresh,5000);
 </script></body></html>`

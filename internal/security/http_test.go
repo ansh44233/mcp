@@ -119,7 +119,6 @@ func TestBearerMiddlewareRequiresDependencies(t *testing.T) {
 	}
 }
 
-
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -187,7 +186,7 @@ func TestBearerPrincipalReachesMCPToolExecution(t *testing.T) {
 	defer session.Close()
 
 	allowed, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "github_repository_get",
+		Name:      "github_repository_get",
 		Arguments: map[string]any{"owner": "acme", "repo": "demo"},
 	})
 	if err != nil {

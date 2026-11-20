@@ -25,8 +25,9 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 - Catalog-to-MCP bridge: registered definitions are discoverable and invokable through the official SDK.
 - Execution-time risk policy: the default runtime permits read tools only, supports an explicit tool allowlist and rejects write/destructive or unknown-risk tools before the executor runs.
 - Initial authorization primitives: typed request principals, defensive context propagation, fail-closed principal validation, tool/provider scopes, per-principal risk ceilings and provider-resource allowlists (GitHub owner/repository); authenticated principals without an explicit resource-scope map are denied by default, and the MCP bridge enforces resource authorization against schema-validated arguments before execution.
-- Bearer middleware adapter: composes the official MCP Go SDK token-verification middleware with a server-side principal resolver. The host must supply a real token verifier and trusted user-to-tenant/scope resolver; the production runtime does not configure either yet.
-- OIDC-discovered OAuth token-introspection verifier: uses the issuer metadata's RFC 7662 introspection endpoint with confidential-client authentication; requires an active token, exact issuer, configured audience, subject and future expiry; bounds token and response sizes, limits requests, rejects unsafe issuer/endpoint origins, and extracts scopes only from the authenticated introspection response. This adapter is not wired into the executable yet; remote HTTP remains disabled, and tenant/resource scopes still come from a trusted server-side principal resolver.
+- Bearer middleware adapter: composes the official MCP Go SDK token middleware with a trusted server-side principal resolver. The HTTP executable can configure this adapter from OIDC issuer/audience/client credentials and a strict subject-to-tenant/tool/provider/resource grants file; partial configuration fails startup. The default local mode remains available when no OIDC settings are supplied.
+- OIDC-discovered OAuth token-introspection verifier: uses the issuer metadata's RFC 7662 introspection endpoint with confidential-client authentication; requires an active token, exact issuer, configured audience, subject and future expiry; bounds token and response sizes, limits requests, rejects unsafe issuer/endpoint origins and redirects, and extracts scopes only from the authenticated introspection response.
+- Static subject grant resolver: maps verified issuer subjects to operator-defined tenants and explicit tool/provider/resource allowlists. Grants are loaded from a bounded JSON file with unknown-field and trailing-data rejection; unprovisioned subjects fail closed.
 - Initial GitHub read-only connector using the GitHub REST API:
   - Repository metadata
   - Branch listing
@@ -58,7 +59,7 @@ Universal MCP connects MCP-compatible AI clients to developer platforms and busi
 
 - More complete connector SDK, runtime status reporting and dynamic registration.
 - GitHub write operations behind explicit authorization and approval policies.
-- Production token-verifier and principal-resolver configuration, trusted tenant-to-resource scope provisioning, secret-provider integration, and externally anchored/tamper-resistant audit storage. The local hash chain is tamper-evident but an attacker able to rewrite the entire file can recompute it. Resource allowlists are enforced when supplied by a trusted principal resolver; tenant IDs alone do not imply isolation.
+- Support for identity providers that do not expose a compatible introspection endpoint, dynamic tenant membership and grant administration, secret-provider integration, and externally anchored/tamper-resistant audit storage. The local hash chain is tamper-evident but an attacker able to rewrite the entire file can recompute it. Resource allowlists are enforced from trusted server-side grants; tenant IDs alone do not imply isolation.
 - Workflow execution, worker scheduling, authenticated workflow APIs, and dashboard workflow controls. The optional journal persists workflow metadata/checkpoints only; it does not execute tools.
 - Full dashboard management views for connectors, sessions, workflows, approvals, logs and security; approval review APIs exist, but the frontend review panel and production authentication integration remain outstanding.
 - Additional providers and cross-provider search.
@@ -101,7 +102,34 @@ Then open:
 - Connector health check: POST http://127.0.0.1:8080/api/v1/connectors/github/health-check
 - MCP endpoint: http://127.0.0.1:8080/mcp
 
-HTTP mode intentionally binds to loopback only. Do not expose it to a network: remote authentication, authorization and tenant isolation are not implemented yet.
+HTTP mode intentionally binds to loopback only. When all OIDC settings are configured, the `/mcp` endpoint requires a bearer access token validated through the issuer's introspection endpoint and a matching subject grant. With no OIDC settings, local loopback mode uses the explicit read-only local principal. Partial OIDC configuration fails closed. The dashboard and operator APIs do not yet have browser login/authentication, so remote binding remains disabled.
+
+### Optional OIDC authentication for the local HTTP MCP endpoint
+
+Configure all five variables to require bearer-token introspection on `/mcp`:
+
+- `MCP_OIDC_ISSUER`: exact issuer URL from the provider's discovery metadata.
+- `MCP_OIDC_AUDIENCE`: audience expected by this MCP resource server.
+- `MCP_OIDC_CLIENT_ID` and `MCP_OIDC_CLIENT_SECRET`: confidential client credentials for the introspection endpoint.
+- `MCP_AUTHZ_GRANTS_FILE`: path to a trusted JSON file mapping verified token subjects to tenant and resource scopes.
+
+Example grants file:
+
+```json
+{
+  "provider-subject-123": {
+    "tenant_id": "engineering",
+    "max_risk": "read",
+    "allowed_tools": ["github_repository_get", "github_branches_list"],
+    "allowed_providers": ["github"],
+    "allowed_resources": {
+      "github": ["acme/demo", "acme/platform"]
+    }
+  }
+}
+```
+
+The provider must publish an `introspection_endpoint` in its discovery metadata and return active status, issuer, audience, subject and expiry for access tokens. Keep the grants file and client secret under operator control; never accept tenant or resource scopes from MCP arguments. Only subjects explicitly listed in the grants file are admitted. The current server still binds to loopback because dashboard browser authentication is not implemented.
 
 ## Operator dashboard frontend
 

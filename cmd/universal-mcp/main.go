@@ -5,7 +5,9 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"os"
 	"os/signal"
 	"syscall"
@@ -34,6 +36,10 @@ func main() {
 			os.Exit(1)
 		}
 	case "http":
+		if !isLoopbackAddress(*addr) {
+			logger.Error("remote HTTP is disabled until authentication and authorization are implemented; bind to localhost", "address", *addr)
+			os.Exit(2)
+		}
 		mcpHandler := mcp.NewStreamableHTTPHandler(
 			func(*http.Request) *mcp.Server { return mcpServer },
 			&mcp.StreamableHTTPOptions{Stateless: true, Logger: logger},
@@ -70,4 +76,16 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func isLoopbackAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

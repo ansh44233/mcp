@@ -18,10 +18,11 @@ Until authentication, authorization, tenant isolation and remote transport harde
 
 ## Current components
 
-- `cmd/universal-mcp`: process entry point, signal handling, transport selection and HTTP lifecycle.
+- `cmd/universal-mcp`: process entry point, signal handling, transport selection, HTTP lifecycle and bounded runtime shutdown.
+- `internal/server.Runtime`: owns the MCP server and connector manager; `Close` shuts down managed connectors with the caller's deadline.
 - `internal/server`: MCP server construction, built-in platform tools, catalog registration and provider tool dispatch.
 - `internal/tools`: provider-neutral tool definitions, risk metadata, schema validation and MCP publication bridge.
-- `internal/integrations`: connector lifecycle contract and concurrency-safe registry.
+- `internal/integrations`: connector lifecycle contract, concurrency-safe registry and serialized manager for initialization, rollback, unregister and graceful shutdown.
 - `internal/providers/github`: read-only GitHub REST client and connector adapter.
 - `internal/dashboard`: local operator console, health/status APIs, searchable tool catalog and connector inventory APIs.
 - `github.com/modelcontextprotocol/go-sdk`: protocol implementation and transports.
@@ -30,7 +31,7 @@ Until authentication, authorization, tenant isolation and remote transport harde
 
 Provider adapters expose typed, read-only operations. The server maps each operation to a provider-neutral tool definition containing a stable ID, provider ID, description, risk classification and JSON input schema. The catalog validates metadata and provides deterministic discovery. The MCP bridge publishes catalog entries through the official SDK and forwards validated arguments to an executor.
 
-The first GitHub adapter currently exposes repository metadata, branches, commits, issues, pull requests, individual text-file reads and recursive Git tree listing. File reads decode GitHub's base64 payload, reject binary encodings and enforce a 1 MiB decoded-file limit. Recursive tree responses preserve GitHub's `truncated` flag so callers can detect incomplete results. The REST client uses GET-only requests, bounded pagination, a request timeout, context cancellation and a response-size limit. Primary and secondary rate-limit responses are returned as typed errors with retry-after and reset metadata when supplied. `GITHUB_TOKEN` is optional and is read from the process environment; it is never stored in the repository.
+The server constructs providers through the connector manager, which initializes adapters before registry publication and rolls back failed registrations. On process termination, the entry point shuts down the transport and then closes the runtime with a bounded deadline. The manager attempts all connector shutdowns and retains failed entries so a caller can retry. The first GitHub adapter currently exposes repository metadata, branches, commits, issues, pull requests, individual text-file reads and recursive Git tree listing. File reads decode GitHub's base64 payload, reject binary encodings and enforce a 1 MiB decoded-file limit. Recursive tree responses preserve GitHub's `truncated` flag so callers can detect incomplete results. The REST client uses GET-only requests, bounded pagination, a request timeout, context cancellation and a response-size limit. Primary and secondary rate-limit responses are returned as typed errors with retry-after and reset metadata when supplied. `GITHUB_TOKEN` is optional and is read from the process environment; it is never stored in the repository.
 
 The dashboard receives tool metadata from the same `githubToolDefinitions` used by MCP catalog registration, and connector metadata/operations from the concurrency-safe connector registry. It exposes read-only `/api/v1/tools` and `/api/v1/connectors` inventory endpoints, plus an explicit `POST /api/v1/connectors/{id}/health-check` action. Health checks have a 10-second context deadline and invoke only the registered connector's fixed health-check implementation; the GitHub check targets a fixed public repository rather than accepting an arbitrary URL. Tool search and provider filtering are client-side presentation over the catalog API. This keeps the UI inventory aligned with the capabilities published by the server, while avoiding claims that connectors can already be installed or configured through the dashboard.
 

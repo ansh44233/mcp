@@ -1,4 +1,4 @@
-# Universal MCP
+# Universal MCP on pause currently 
 
 A Go-based, provider-neutral Model Context Protocol platform with a first-class operator dashboard.
 
